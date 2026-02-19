@@ -110,7 +110,12 @@ function run_experiment(run_name, penalty_fn, truth_grid, x1s, x2s, init_ps, ini
 
     dx = x1s[2] - x1s[1]
     dy = x2s[2] - x2s[1]
-    area = count(pred_grid) * dx * dy
+    cell_area = dx * dy
+    learned_area = count(pred_grid) * cell_area
+    true_area = count(truth_grid) * cell_area
+    intersection_area = count(pred_grid .& truth_grid) * cell_area
+    overestimation_area = count(pred_grid .& .!truth_grid) * cell_area
+    underestimation_area = count((.!pred_grid) .& truth_grid) * cell_area
 
     run_dir = joinpath("results", run_name)
     mkpath(run_dir)
@@ -120,11 +125,34 @@ function run_experiment(run_name, penalty_fn, truth_grid, x1s, x2s, init_ps, ini
         x2s,
         V_grid;
         levels = [RHO],
+        color = :dodgerblue3,
         linewidth = 2,
+        linestyle = :solid,
+        label = "Learned V(x)=ρ",
         xlabel = "x1",
         ylabel = "x2",
-        title = "Van der Pol V(x)=rho contour",
-        legend = false,
+        title = "Learned V(x) = ρ contour (ρ = $(RHO))",
+        legend = :topright,
+    )
+    contour!(
+        p1,
+        x1s,
+        x2s,
+        truth_grid;
+        levels = [0.5],
+        color = :black,
+        linewidth = 2,
+        linestyle = :dash,
+        label = "True RoA boundary",
+    )
+    scatter!(
+        p1,
+        [X_EQ[1]],
+        [X_EQ[2]];
+        marker = :star5,
+        markersize = 8,
+        color = :red,
+        label = "Equilibrium",
     )
     savefig(p1, joinpath(run_dir, "vanderpol_v_contour.png"))
 
@@ -149,10 +177,27 @@ function run_experiment(run_name, penalty_fn, truth_grid, x1s, x2s, init_ps, ini
     open(joinpath(run_dir, "metrics.txt"), "w") do io
         println(io, "seed: $SEED")
         println(io, "rho: $RHO")
-        println(io, @sprintf("roa_area: %.8f", area))
+        println(io, @sprintf("learned_area: %.8f", learned_area))
+        println(io, @sprintf("true_area: %.8f", true_area))
+        println(io, @sprintf("intersection_area: %.8f", intersection_area))
+        println(io, @sprintf("overestimation_area: %.8f", overestimation_area))
+        println(io, @sprintf("underestimation_area: %.8f", underestimation_area))
     end
 
-    return area
+    over_pct = learned_area > 0 ? 100 * (overestimation_area / learned_area) : 0.0
+    under_pct = true_area > 0 ? 100 * (underestimation_area / true_area) : 0.0
+    println("[$run_name] Learned area: ", @sprintf("%.8f", learned_area))
+    println("[$run_name] True area: ", @sprintf("%.8f", true_area))
+    println("[$run_name] Overestimation %: ", @sprintf("%.2f%%", over_pct))
+    println("[$run_name] Underestimation %: ", @sprintf("%.2f%%", under_pct))
+
+    return (
+        learned_area = learned_area,
+        true_area = true_area,
+        intersection_area = intersection_area,
+        overestimation_area = overestimation_area,
+        underestimation_area = underestimation_area,
+    )
 end
 
 function main()
@@ -170,7 +215,7 @@ function main()
         truth_grid[j, i] = on_true_roa([x1, x2])
     end
 
-    control_area = run_experiment(
+    control_metrics = run_experiment(
         "control",
         control_penalty,
         truth_grid,
@@ -179,7 +224,7 @@ function main()
         init_ps,
         init_st,
     )
-    constant_area = run_experiment(
+    constant_metrics = run_experiment(
         "constant",
         constant_penalty,
         truth_grid,
@@ -189,9 +234,12 @@ function main()
         init_st,
     )
 
-    println("Control RoA area: ", @sprintf("%.8f", control_area))
-    println("Constant RoA area: ", @sprintf("%.8f", constant_area))
-    println("Area difference: ", @sprintf("%.8f", constant_area - control_area))
+    println("Control learned area: ", @sprintf("%.8f", control_metrics.learned_area))
+    println("Constant learned area: ", @sprintf("%.8f", constant_metrics.learned_area))
+    println(
+        "Learned area difference: ",
+        @sprintf("%.8f", constant_metrics.learned_area - control_metrics.learned_area),
+    )
 end
 
 main()

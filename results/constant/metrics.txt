@@ -1,3 +1,7 @@
 seed: 200
 rho: 1.0
-roa_area: 2.43000000
+learned_area: 2.43000000
+true_area: 0.01000000
+intersection_area: 0.01000000
+overestimation_area: 2.42000000
+underestimation_area: 0.00000000
