@@ -1,0 +1,11 @@
+# Temporary files
+tmpclaude-*.cwd
+
+# Julia environment
+/Manifest.lock
+*.jl.swp
+
+# OS files
+.DS_Store
+*.swp
+*~

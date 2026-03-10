@@ -1,0 +1,8 @@
+# This file is machine-generated - editing it directly is not advised
+# Manifest version: 2.0
+
+# The manifest will be regenerated when running:
+# julia --project=. -c "using Pkg; Pkg.instantiate()"
+
+[[deps]]
+julia = "1.11"

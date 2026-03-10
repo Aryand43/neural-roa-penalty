@@ -96,7 +96,12 @@ function build_setup(; seed = 1234, hidden = 32)
     rng = StableRNG(seed)
     Random.seed!(seed)
 
-    f(x, p, t) = -x .+ (x ⋅ x) .* x
+    function f(x, p, t)
+        x1, x2 = x
+        dx1 = -x2
+        dx2 = p * (x1^2 - 1) * x2 + x1
+        return [dx1, dx2]
+    end
     lb = [-2.0, -2.0]
     ub = [2.0, 2.0]
     fixed_point = [0.0, 0.0]
@@ -127,15 +132,11 @@ function compute_grid_metrics(V, V̇, ρ; lb, ub, n = 201)
     Vvals = vec(V(points))
     dVvals = vec(V̇(points))
     roa_mask = Vvals .<= ρ
-    true_mask = [points[1, i]^2 + points[2, i]^2 <= 1.0 for i in 1:size(points, 2)]
-    leak_mask = roa_mask .& .!true_mask
 
     area = sum(roa_mask) * dx * dy
-    true_area = pi
-    leak = any(leak_mask)
     max_dVdt_inside = any(roa_mask) ? maximum(dVvals[roa_mask]) : NaN
 
-    return (; xs, ys, points, Vvals, dVvals, roa_mask, true_mask, leak, area, true_area, max_dVdt_inside)
+    return (; xs, ys, points, Vvals, dVvals, roa_mask, area, max_dVdt_inside)
 end
 
 function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmoid_fn;
@@ -197,8 +198,6 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
         final_loss = isempty(losses) ? NaN : losses[end],
         rho = decrease_condition.ρ,
         area = grid.area,
-        true_area = grid.true_area,
-        leak = grid.leak,
         max_dVdt_inside = grid.max_dVdt_inside,
         has_nan = has_nan,
         losses = losses,
@@ -207,7 +206,6 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
         ys = grid.ys,
         Vvals = grid.Vvals,
         roa_mask = grid.roa_mask,
-        true_mask = grid.true_mask,
         error_message = ""
     )
 end
@@ -220,8 +218,6 @@ function failed_result(penalty_name, sigmoid_name, err)
         final_loss = NaN,
         rho = NaN,
         area = NaN,
-        true_area = pi,
-        leak = false,
         max_dVdt_inside = NaN,
         has_nan = true,
         losses = Float64[],
@@ -230,7 +226,6 @@ function failed_result(penalty_name, sigmoid_name, err)
         ys = Float64[],
         Vvals = Float64[],
         roa_mask = Bool[],
-        true_mask = Bool[],
         error_message = msg
     )
 end
@@ -255,7 +250,6 @@ function save_summary_csv(results)
             final_loss = Float64(r.final_loss),
             rho = Float64(r.rho),
             roa_area = Float64(r.area),
-            true_roa_area = Float64(r.true_area),
             leak_outside_true_roa = Bool(r.leak),
             max_dVdt_inside_V_le_rho = Float64(r.max_dVdt_inside),
             has_nan = Bool(r.has_nan),
@@ -314,12 +308,10 @@ function maybe_make_plots(results)
             title = "$(r.penalty) ($(r.sigmoid))",
             legend = false
         )
-        θ = range(0, 2pi, length = 400)
-        plot!(p, cos.(θ), sin.(θ); lw = 2, ls = :dash, color = :black)
         push!(plt_list, p)
     end
     big = plot(plt_list...; layout = (ceil(Int, length(plt_list) / 3), 3), size = (1200, 900))
-    savefig(big, joinpath(RESULTS_DIR, "roa_contours_vs_true.png"))
+    savefig(big, joinpath(RESULTS_DIR, "roa_contours.png"))
 
     labels = ["$(r.penalty)\n$(r.sigmoid)" for r in results]
     areas = [r.area for r in results]
