@@ -1,15 +1,169 @@
-penalty,sigmoid,final_loss,rho,roa_area,true_roa_area,leak_outside_true_roa,max_dVdt_inside_V_le_rho,has_nan,error_message
-control_zero,default,5.934729841099874e-67,1.0,2.3368,3.141592653589793,false,0.0,false,""
-control_zero,logistic,1.0804917134453544e-6,1.0,1.8988,3.141592653589793,false,0.0,false,""
-constant_one,default,0.84375,1.0,2.3368,3.141592653589793,false,0.0,false,""
-constant_one,logistic,0.7997294614670528,1.0,3.0644,3.141592653589793,false,0.0,false,""
-inv_dist_sq,default,0.26274792950832,1.0,2.3368,3.141592653589793,false,0.0,false,""
-inv_dist_sq,logistic,NaN,NaN,NaN,3.141592653589793,false,NaN,true,"AssertionError: B > A"
-scaled_inv_dist_sq,default,2071.9350230876857,1.0,2.3368,3.141592653589793,false,0.0,false,""
-scaled_inv_dist_sq,logistic,NaN,NaN,NaN,3.141592653589793,false,NaN,true,"AssertionError: slopes[ib] >= zeroT"
-inv_dist,default,0.38669887437855266,1.0,2.3368,3.141592653589793,false,0.0,false,""
-inv_dist,logistic,0.27599991667382623,1.0,3.1252,3.141592653589793,false,0.0,false,""
-inv_V,default,1.1442877638580552e-86,1.0,0.1668,3.141592653589793,false,0.0,false,""
-inv_V,logistic,NaN,NaN,NaN,3.141592653589793,false,NaN,true,"AssertionError: isfinite(phi_d) && isfinite(gphi)"
-quadratic_over_rho,default,99.46261909070823,1.0,3.0348,3.141592653589793,false,0.0,false,""
-quadratic_over_rho,logistic,85.76407764540255,1.0,3.1008,3.141592653589793,false,0.0,false,""
+penalty,sigmoid,final_loss,rho,roa_area,max_dVdt_inside,has_nan,error_message
+control_zero,default,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+control_zero,logistic,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+constant_one,default,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+constant_one,logistic,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+inv_dist_sq,default,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+inv_dist_sq,logistic,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+scaled_inv_dist_sq,default,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+scaled_inv_dist_sq,logistic,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+inv_dist,default,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+inv_dist,logistic,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+inv_V,default,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+inv_V,logistic,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+quadratic_over_rho,default,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"
+quadratic_over_rho,logistic,NaN,NaN,NaN,NaN,true,"MethodError: no method matching +(::Vector{Any}, ::Num)
+The function `+` exists, but no method is defined for this combination of argument types.
+
+Closest candidates are:
+  +(::Any, ::Any, !Matched::Any, !Matched::Any...)
+   @ Base operators.jl:596
+  +(!Matched::Complex{Bool}, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\Symbolics\T2Tbs\src\num.jl:59
+  +(!Matched::Num, ::Num)
+   @ Symbolics C:\Users\AD\.julia\packages\SymbolicUtils\N76BL\src\methods.jl:72
+  ...
+"

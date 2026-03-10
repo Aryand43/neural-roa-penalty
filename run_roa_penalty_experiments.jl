@@ -250,20 +250,19 @@ function save_summary_csv(results)
             final_loss = Float64(r.final_loss),
             rho = Float64(r.rho),
             roa_area = Float64(r.area),
-            leak_outside_true_roa = Bool(r.leak),
-            max_dVdt_inside_V_le_rho = Float64(r.max_dVdt_inside),
+            max_dVdt_inside = Float64(r.max_dVdt_inside),
             has_nan = Bool(r.has_nan),
             error_message = r.error_message,
         ) for r in results
     ]
     out = joinpath(RESULTS_DIR, "summary.csv")
     open(out, "w") do io
-        println(io, "penalty,sigmoid,final_loss,rho,roa_area,true_roa_area,leak_outside_true_roa,max_dVdt_inside_V_le_rho,has_nan,error_message")
+        println(io, "penalty,sigmoid,final_loss,rho,roa_area,max_dVdt_inside,has_nan,error_message")
         for row in rows
             escaped = replace(row.error_message, "\"" => "'")
             println(
                 io,
-                "$(row.penalty),$(row.sigmoid),$(row.final_loss),$(row.rho),$(row.roa_area),$(row.true_roa_area),$(row.leak_outside_true_roa),$(row.max_dVdt_inside_V_le_rho),$(row.has_nan),\"$(escaped)\""
+                "$(row.penalty),$(row.sigmoid),$(row.final_loss),$(row.rho),$(row.roa_area),$(row.max_dVdt_inside),$(row.has_nan),\"$(escaped)\""
             )
         end
     end
@@ -310,13 +309,18 @@ function maybe_make_plots(results)
         )
         push!(plt_list, p)
     end
-    big = plot(plt_list...; layout = (ceil(Int, length(plt_list) / 3), 3), size = (1200, 900))
-    savefig(big, joinpath(RESULTS_DIR, "roa_contours.png"))
+    if !isempty(plt_list)
+        big = plot(plt_list...; layout = (ceil(Int, length(plt_list) / 3), 3), size = (1200, 900))
+        savefig(big, joinpath(RESULTS_DIR, "roa_contours.png"))
+    else
+        open(joinpath(RESULTS_DIR, "plot_status.txt"), "a") do io
+            write(io, "No valid contour data available; skipped roa_contours.png generation.\n")
+        end
+    end
 
     labels = ["$(r.penalty)\n$(r.sigmoid)" for r in results]
     areas = [r.area for r in results]
     p_area = bar(labels, areas; xlabel = "Penalty / Sigmoid", ylabel = "Estimated RoA area", legend = false, xrotation = 45)
-    hline!(p_area, [pi]; color = :red, ls = :dash, lw = 2)
     savefig(p_area, joinpath(RESULTS_DIR, "area_comparison.png"))
 end
 
@@ -397,7 +401,7 @@ function write_structured_report(results, summary_rows, src)
         println(io)
         for row in summary_rows
             e = isempty(row.error_message) ? "none" : row.error_message
-            println(io, "- penalty: `$(row.penalty)` | sigmoid: `$(row.sigmoid)` | final_loss: `$(row.final_loss)` | ρ: `$(row.rho)` | area: `$(row.roa_area)` | leak_outside_true_RoA: `$(row.leak_outside_true_roa)` | max_dVdt_inside_V_le_ρ: `$(row.max_dVdt_inside_V_le_rho)` | has_nan: `$(row.has_nan)` | error: `$(e)`")
+            println(io, "- penalty: `$(row.penalty)` | sigmoid: `$(row.sigmoid)` | final_loss: `$(row.final_loss)` | ρ: `$(row.rho)` | area: `$(row.roa_area)` | max_dVdt_inside: `$(row.max_dVdt_inside)` | has_nan: `$(row.has_nan)` | error: `$(e)`")
         end
         println(io)
 
