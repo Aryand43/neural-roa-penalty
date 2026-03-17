@@ -250,6 +250,46 @@ function write_structured_report(results, summary_rows, src)
         end
         println(io)
 
+        println(io, "## Expected vs Observed Behavior")
+        println(io)
+
+        r_cz = only(filter(r -> r.penalty == "control_zero" && r.sigmoid == "default", results))
+        println(io, "### control_zero (default sigmoid)")
+        println(io)
+        println(io, "- **Expected:** smallest RoA estimate since there is no penalty outside the RoA")
+        println(io, "- **Observed:** area = $(r_cz.area), max dV/dt inside = $(r_cz.max_dVdt_inside)")
+        if r_cz.area <= minimum(r.area for r in results if isfinite(r.area))
+            println(io, "- **Comparison:** consistent — control_zero produced the smallest (or tied smallest) RoA area, confirming that the absence of an out-of-RoA penalty limits expansion.")
+        else
+            println(io, "- **Comparison:** unexpected — control_zero did not produce the smallest RoA area; other penalties may have collapsed or failed.")
+        end
+        println(io)
+
+        r_co = only(filter(r -> r.penalty == "constant_one" && r.sigmoid == "logistic", results))
+        println(io, "### constant_one (logistic sigmoid)")
+        println(io)
+        println(io, "- **Expected:** moderate RoA expansion due to uniform penalty with smooth sigmoid gating")
+        println(io, "- **Observed:** area = $(r_co.area), max dV/dt inside = $(r_co.max_dVdt_inside)")
+        median_area = sort([r.area for r in results if isfinite(r.area)])[div(count(r -> isfinite(r.area), results), 2) + 1]
+        if r_co.area >= median_area
+            println(io, "- **Comparison:** consistent — constant_one with logistic sigmoid achieved at-or-above-median area, matching the moderate expansion expectation.")
+        else
+            println(io, "- **Comparison:** below median area; the uniform penalty may not provide enough spatial signal even with a smooth sigmoid.")
+        end
+        println(io)
+
+        r_iv = only(filter(r -> r.penalty == "inv_V" && r.sigmoid == "default", results))
+        println(io, "### inv_V (default sigmoid)")
+        println(io)
+        println(io, "- **Expected:** unstable or collapsed RoA estimate due to singularity when V approaches zero")
+        println(io, "- **Observed:** area = $(r_iv.area), max dV/dt inside = $(r_iv.max_dVdt_inside), has_nan = $(r_iv.has_nan)")
+        if r_iv.has_nan || !isfinite(r_iv.area) || r_iv.area ≈ 0.0
+            println(io, "- **Comparison:** consistent — inv_V produced NaN or collapsed area, confirming the V→0 singularity destabilises training.")
+        else
+            println(io, "- **Comparison:** unexpected — inv_V did not collapse; the network may have learned to keep V bounded away from zero.")
+        end
+        println(io)
+
         println(io, "## Adaptive Reweighting Check")
         println(io)
         println(io, "- $(adaptive_note)")
