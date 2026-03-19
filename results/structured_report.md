@@ -8,6 +8,11 @@
 - Loss aggregation: NeuralPDE residual loss over PDE equations (each residual vs `0.0`).
 - Gradient through default sigmoid: non-smooth/boolean gate; logistic variant provides smooth gate.
 
+## Expected vs actual (selected penalties)
+
+- **controlzero**: expected smallest RoA because no out-of-RoA penalty; observed areas 2.9064 (default) and 2.9164 (logistic), which are among the smallest, consistent with limited RoA expansion.
+- **constantone**: expected moderate RoA expansion due to a uniform penalty; observed areas 2.9004 (default) and 3.1276 (logistic), with the logistic run near the top of the area range, roughly matching the moderate-expansion expectation.
+
 ## Per-Run Results
 
 - penalty: `control_zero` | sigmoid: `default` | final_loss: `0.0` | ρ: `1.0` | area: `2.9064` | max_dVdt_inside: `0.003130671393868094` | has_nan: `false` | error: `none`
