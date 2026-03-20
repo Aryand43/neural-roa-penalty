@@ -1,6 +1,6 @@
 # neural-roa-penalty
 
-Systematic comparison of RoA-aware penalty functions for neural Lyapunov verification on Van der Pol dynamics via [NeuralLyapunov.jl](https://github.com/SciML/NeuralLyapunov.jl).[file:1]
+Systematic comparison of RoA-aware penalty functions for neural Lyapunov verification on Van der Pol dynamics via [NeuralLyapunov.jl](https://github.com/SciML/NeuralLyapunov.jl).
 
 ## Quick start
 
