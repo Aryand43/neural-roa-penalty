@@ -112,7 +112,8 @@ function maybe_make_plots(results)
     valid = filter(r -> !isempty(r.iterations) && !isempty(r.losses), results)
     p_loss = plot(; yscale = :log10, xlabel = "Iteration", ylabel = "Loss", title = "Training loss (log-scale)")
     for r in valid
-        plot!(p_loss, r.iterations, r.losses; label = "$(r.penalty) / $(r.sigmoid)", lw = 1.5)
+        clamped = max.(r.losses, eps(Float64))
+        plot!(p_loss, r.iterations, clamped; label = "$(r.penalty) / $(r.sigmoid)", lw = 1.5)
     end
     savefig(p_loss, joinpath(RESULTS_DIR, "loss_logscale.png"))
 

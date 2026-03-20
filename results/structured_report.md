@@ -1,6 +1,6 @@
 # Structured Report
 
-- Timestamp: 2026-03-10 14:02:35
+- Timestamp: 2026-03-20 11:11:30
 - NeuralLyapunov path: `C:\Users\AD\.julia\packages\NeuralLyapunov\oKiqr\src\NeuralLyapunov.jl`
 - Default sigmoid in source: `(x) -> x .≥ zero.(x)` (hard step)
 - Logistic sigmoid used in experiments: `σ(z)=1/(1+exp(-k*z))`, with `k=20`
@@ -8,10 +8,17 @@
 - Loss aggregation: NeuralPDE residual loss over PDE equations (each residual vs `0.0`).
 - Gradient through default sigmoid: non-smooth/boolean gate; logistic variant provides smooth gate.
 
-## Expected vs actual (selected penalties)
+## Penalty Hypotheses
 
-- **controlzero**: expected smallest RoA because no out-of-RoA penalty; observed areas 2.9064 (default) and 2.9164 (logistic), which are among the smallest, consistent with limited RoA expansion.
-- **constantone**: expected moderate RoA expansion due to a uniform penalty; observed areas 2.9004 (default) and 3.1276 (logistic), with the logistic run near the top of the area range, roughly matching the moderate-expansion expectation.
+| Penalty | Expression | Expected Behavior | Reasoning |
+|---------|------------|-------------------|-----------|
+| control_zero | 0 | smallest RoA estimate since there is no penalty outside the RoA | optimizer receives no gradient signal outside the RoA boundary |
+| constant_one | 1 | moderate RoA expansion | uniform penalty encourages RoA expansion but provides no spatial structure |
+| inv_dist_sq | 1 / ‖x - x₀‖² | unstable gradients near equilibrium | gradient magnitude increases rapidly near the equilibrium |
+| scaled_inv_dist_sq | 100 / ‖x - x₀‖² | similar to inv_dist_sq due to loss aggregation scaling | NeuralPDE residual loss may normalize effect of scale changes |
+| inv_dist | 1 / ‖x - x₀‖ | smoother variant of inverse distance penalty | weaker singularity compared to squared inverse distance |
+| inv_V | 1 / V | unstable or collapsed RoA estimate | singularity when V approaches zero |
+| quadratic_over_rho | max(0, V - ρ)² | well-shaped RoA boundary | directly penalizes states outside the RoA level set |
 
 ## Per-Run Results
 
@@ -29,6 +36,26 @@
 - penalty: `inv_V` | sigmoid: `logistic` | final_loss: `0.15060974536345745` | ρ: `1.0` | area: `1.3516` | max_dVdt_inside: `2.779808936432459` | has_nan: `false` | error: `none`
 - penalty: `quadratic_over_rho` | sigmoid: `default` | final_loss: `105.90212524702662` | ρ: `1.0` | area: `3.0356` | max_dVdt_inside: `0.23240711672411768` | has_nan: `false` | error: `none`
 - penalty: `quadratic_over_rho` | sigmoid: `logistic` | final_loss: `96.9347660333508` | ρ: `1.0` | area: `3.052` | max_dVdt_inside: `0.12404547271298605` | has_nan: `false` | error: `none`
+
+## Expected vs Observed Behavior
+
+### control_zero (default sigmoid)
+
+- **Expected:** smallest RoA estimate since there is no penalty outside the RoA
+- **Observed:** area = 2.9064, max dV/dt inside = 0.003130671393868094
+- **Comparison:** unexpected — control_zero did not produce the smallest RoA area; other penalties may have collapsed or failed.
+
+### constant_one (logistic sigmoid)
+
+- **Expected:** moderate RoA expansion due to uniform penalty with smooth sigmoid gating
+- **Observed:** area = 3.1276, max dV/dt inside = 0.015466163134244088
+- **Comparison:** consistent — constant_one with logistic sigmoid achieved at-or-above-median area, matching the moderate expansion expectation.
+
+### inv_V (default sigmoid)
+
+- **Expected:** unstable or collapsed RoA estimate due to singularity when V approaches zero
+- **Observed:** area = 0.0016, max dV/dt inside = 52.32431285778799, has_nan = false
+- **Comparison:** unexpected — inv_V did not collapse; the network may have learned to keep V bounded away from zero.
 
 ## Adaptive Reweighting Check
 
