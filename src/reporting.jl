@@ -101,6 +101,53 @@ function save_summary_csv(results)
     return rows
 end
 
+function approximate_true_roa(xs, ys; T = 20.0, dt = 0.01, bound = 5.0, tol = 0.2)
+    nx, ny = length(xs), length(ys)
+    mask = falses(nx, ny)
+    nsteps = round(Int, T / dt)
+    for j in 1:ny
+        for i in 1:nx
+            x = [Float64(xs[i]), Float64(ys[j])]
+            escaped = false
+            for _ in 1:nsteps
+                dx = vanderpol(x, nothing, 0.0)
+                x = x .+ dt .* dx
+                if x[1]^2 + x[2]^2 > bound^2
+                    escaped = true
+                    break
+                end
+            end
+            if !escaped && sqrt(x[1]^2 + x[2]^2) <= tol
+                mask[i, j] = true
+            end
+        end
+    end
+    return mask
+end
+
+function plot_roa_overlay(r, true_roa_mask)
+    n = length(r.xs)
+    learned = reshape(r.roa_mask, n, n)
+
+    p = heatmap(
+        r.xs, r.ys, Float64.(true_roa_mask)';
+        color = cgrad([:white, :lightblue]),
+        clims = (0, 1),
+        xlabel = "x1",
+        ylabel = "x2",
+        title = "$(r.penalty) / $(r.sigmoid): learned vs true RoA",
+        colorbar = false
+    )
+    contour!(p, r.xs, r.ys, Float64.(learned)';
+        levels = [0.5], color = :red, lw = 2.5, label = "Learned V(x)≤ρ")
+    contour!(p, r.xs, r.ys, Float64.(true_roa_mask)';
+        levels = [0.5], color = :blue, lw = 1.5, ls = :dash, label = "True RoA boundary")
+
+    fname = "roa_overlay_$(r.penalty)_$(r.sigmoid).png"
+    savefig(p, joinpath(RESULTS_DIR, fname))
+    return p
+end
+
 function maybe_make_plots(results)
     if !HAVE_PLOTS
         open(joinpath(RESULTS_DIR, "plot_status.txt"), "w") do io
@@ -155,6 +202,21 @@ function maybe_make_plots(results)
     areas = [r.area for r in results]
     p_area = bar(labels, areas; xlabel = "Penalty / Sigmoid", ylabel = "Estimated RoA area", legend = false, xrotation = 45)
     savefig(p_area, joinpath(RESULTS_DIR, "area_comparison.png"))
+
+    overlay_candidates = filter(r -> !isempty(r.roa_mask) && !isempty(r.xs) && !isempty(r.ys) && isfinite(r.rho), results)
+    if !isempty(overlay_candidates)
+        ref = first(overlay_candidates)
+        println("Computing approximate true RoA on $(length(ref.xs))×$(length(ref.ys)) grid...")
+        true_roa_mask = approximate_true_roa(ref.xs, ref.ys)
+        for r in overlay_candidates
+            plot_roa_overlay(r, true_roa_mask)
+        end
+        println("Saved $(length(overlay_candidates)) RoA overlay plots to $(RESULTS_DIR)")
+    else
+        open(joinpath(RESULTS_DIR, "plot_status.txt"), "a") do io
+            write(io, "No valid results with xs/ys/roa_mask; skipped RoA overlay plots.\n")
+        end
+    end
 end
 
 function write_source_report(src)

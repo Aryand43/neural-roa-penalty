@@ -1,6 +1,6 @@
 # Structured Report
 
-- Timestamp: 2026-03-20 11:11:30
+- Timestamp: 2026-03-22 09:31:53
 - NeuralLyapunov path: `C:\Users\AD\.julia\packages\NeuralLyapunov\oKiqr\src\NeuralLyapunov.jl`
 - Default sigmoid in source: `(x) -> x .≥ zero.(x)` (hard step)
 - Logistic sigmoid used in experiments: `σ(z)=1/(1+exp(-k*z))`, with `k=20`
