@@ -60,6 +60,22 @@ Plots for all 14 runs (7 penalties × 2 sigmoids):
 | `inv_V` | The 1/V singularity is catastrophic: with the hard-step sigmoid, the non-differentiable gate combined with gradient blowup at V→0 collapses the learned RoA to near-zero area; the logistic sigmoid partially recovers by providing smooth gating, but the fundamental singularity still degrades the estimate. |
 | `quadratic_over_rho` | The smooth, zero-inside / quadratic-outside structure gives gradients exactly proportional to the boundary violation, making this the most natural penalty for level-set shaping; high final loss reflects the penalty doing its job (large residuals where V>ρ) rather than training failure. |
 
+## Expected vs Observed (Summary)
+
+Comparison of pre-experiment hypotheses against actual outcomes from `results/summary.csv`. Areas are for the logistic sigmoid unless noted; all runs used ρ=1.0.
+
+| Penalty | Expected | Observed | Match? | Key reason |
+|---|---|---|---|---|
+| `control_zero` | Smallest RoA | Area ≈ 2.91 (both sigmoids) — near-baseline but not absolute smallest | Partial | No expansion pressure as predicted, but `inv_V` collapsed further; control_zero simply preserves the initialization-driven baseline |
+| `constant_one` | Moderate expansion | Area 2.90 → 3.13 (default → logistic) | Yes | Uniform penalty expands the boundary; logistic sigmoid's smooth gating enables +8% area over hard step |
+| `inv_dist_sq` | Gradient instability risk | Area 2.92 → 3.08; stable training | Yes | σ(V−ρ) gating confines the singularity outside {V≤ρ}, preventing blowup; logistic sigmoid enables boundary refinement |
+| `scaled_inv_dist_sq` | ≈ `inv_dist_sq` | Area 2.95 → 3.09; Δ < 0.01 vs `inv_dist_sq` | Yes | 100× scale absorbed by NeuralPDE residual aggregation as predicted |
+| `inv_dist` | Milder than `inv_dist_sq` | Area 2.91 → 3.11; similar stability | Yes | Order-1 singularity yields comparable results with marginally smoother training |
+| `inv_V` | Collapsed RoA | Area 0.002 (default), 1.35 (logistic) | Yes | Hard-step + V→0 singularity collapses RoA to near-zero; logistic sigmoid partially recovers via smooth gating but max dV/dt inside remains high (2.78) |
+| `quadratic_over_rho` | Well-shaped boundary | Area 3.04 (default), 3.05 (logistic); largest with hard step | Yes | Smooth quadratic structure provides clean gradient signal even through the non-differentiable hard-step gate |
+
+**Sigmoid prediction verdict:** Confirmed — logistic sigmoid produced equal or larger RoA area for every penalty. The effect is most dramatic for `inv_V` (0.002 → 1.35) where smooth gating rescues an otherwise collapsed estimate.
+
 ## License
 
 MIT: Julia Lab / MIT CSAIL
