@@ -10,6 +10,7 @@ function make_penalty_list()
         ("inv_dist", (V, dVdt, x, x_eq, ρ) -> 1.0 / (norm(x - x_eq) + 1.0e-6)),
         ("inv_V_small", (V, dVdt, x, x_eq, ρ) -> 1.0 / (V + 1e-3)),
         ("inv_V_rho", (V, dVdt, x, x_eq, ρ) -> 1.0 / (V + ρ)),
+        ("inv_V_clipped", (V, dVdt, x, x_eq, ρ) -> 1.0 / max(V, 0.1)),
         ("quadratic_over_rho", (V, dVdt, x, x_eq, ρ) -> max(0.0, V - ρ)^2),
     ]
 end

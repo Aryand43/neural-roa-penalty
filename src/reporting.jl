@@ -305,6 +305,7 @@ function write_structured_report(results, summary_rows, src)
         println(io, "| inv_dist | 1 / ‖x - x₀‖ | smoother variant of inverse distance penalty | weaker singularity compared to squared inverse distance |")
         println(io, "| inv_V_small | 1 / (V + 1e-3) | stabilized inverse-V with small epsilon | avoids V→0 singularity via fixed offset |")
         println(io, "| inv_V_rho | 1 / (V + ρ) | stabilized inverse-V scaled by ρ | uses ρ as natural offset, singularity-free for V ≥ 0 |")
+        println(io, "| inv_V_clipped | 1 / max(V, 0.1) | safe inverse-V via hard floor | clamps V away from zero, preventing gradient blowup entirely |")
         println(io, "| quadratic_over_rho | max(0, V - ρ)² | well-shaped RoA boundary | directly penalizes states outside the RoA level set |")
         println(io)
 
@@ -366,6 +367,8 @@ function write_structured_report(results, summary_rows, src)
         else
             println(io, "- **Comparison:** ρ-based stabilization successful — finite area obtained.")
         end
+        println(io)
+        println(io, "> **Note on inv_V instability:** Instability likely arises from interaction between penalty scaling and NeuralPDE residual formulation, where large curvature near low-V regions still destabilizes optimization despite offset.")
         println(io)
 
         println(io, "## Adaptive Reweighting Check")

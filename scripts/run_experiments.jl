@@ -26,7 +26,6 @@ function main()
     write_source_report(src)
 
     println("Building controlled setup...")
-    setup = build_setup(; seed = 2026, hidden = 32)
     penalties = make_penalty_list()
     sigmoid_list = [
         ("default", hard_step_sigmoid),
@@ -40,6 +39,7 @@ function main()
         for (sname, sfn) in sigmoid_list
 
             Random.seed!(2026)
+            setup = build_setup(; seed = 2026, hidden = 32)
 
             println("Training penalty=$(pname), sigmoid=$(sname)")
             res = try
