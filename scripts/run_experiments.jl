@@ -38,6 +38,9 @@ function main()
     bfgs_iters = 20
     for (pname, pfn) in penalties
         for (sname, sfn) in sigmoid_list
+
+            Random.seed!(2026)
+
             println("Training penalty=$(pname), sigmoid=$(sname)")
             res = try
                 run_one_experiment(setup, pname, pfn, sname, sfn; adam_iters = adam_iters, bfgs_iters = bfgs_iters, ρ = 1.0)

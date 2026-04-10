@@ -31,9 +31,14 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     )
     prob = discretize(pde_system, discretization)
 
+    start_time = time()
+
     adam_res = Optimization.solve(prob, Adam(); maxiters = adam_iters)
     prob2 = Optimization.remake(prob, u0 = adam_res.u)
     bfgs_res = Optimization.solve(prob2, BFGS(); maxiters = bfgs_iters)
+
+    elapsed = time() - start_time
+
     u = bfgs_res.u
     θ = hasproperty(u, :depvar) ? u.depvar : u
 
@@ -58,6 +63,7 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
         rho = decrease_condition.ρ,
         area = grid.area,
         max_dVdt_inside = grid.max_dVdt_inside,
+        training_time = elapsed,
         has_nan = has_nan,
         losses = losses,
         iterations = iters,
@@ -78,6 +84,7 @@ function failed_result(penalty_name, sigmoid_name, err)
         rho = NaN,
         area = NaN,
         max_dVdt_inside = NaN,
+        training_time = NaN,
         has_nan = true,
         losses = Float64[],
         iterations = Int[],

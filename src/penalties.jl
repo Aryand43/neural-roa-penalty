@@ -8,7 +8,8 @@ function make_penalty_list()
         ("inv_dist_sq", (V, dVdt, x, x_eq, ρ) -> 1.0 / (norm(x - x_eq)^2 + 1.0e-6)),
         ("scaled_inv_dist_sq", (V, dVdt, x, x_eq, ρ) -> 100.0 / (norm(x - x_eq)^2 + 1.0e-6)),
         ("inv_dist", (V, dVdt, x, x_eq, ρ) -> 1.0 / (norm(x - x_eq) + 1.0e-6)),
-        ("inv_V", (V, dVdt, x, x_eq, ρ) -> 1.0 / (V + 1.0e-6)),
+        ("inv_V_small", (V, dVdt, x, x_eq, ρ) -> 1.0 / (V + 1e-3)),
+        ("inv_V_rho", (V, dVdt, x, x_eq, ρ) -> 1.0 / (V + ρ)),
         ("quadratic_over_rho", (V, dVdt, x, x_eq, ρ) -> max(0.0, V - ρ)^2),
     ]
 end

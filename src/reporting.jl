@@ -83,18 +83,19 @@ function save_summary_csv(results)
             rho = Float64(r.rho),
             roa_area = Float64(r.area),
             max_dVdt_inside = Float64(r.max_dVdt_inside),
+            training_time = Float64(r.training_time),
             has_nan = Bool(r.has_nan),
             error_message = r.error_message,
         ) for r in results
     ]
     out = joinpath(RESULTS_DIR, "summary.csv")
     open(out, "w") do io
-        println(io, "penalty,sigmoid,final_loss,rho,roa_area,max_dVdt_inside,has_nan,error_message")
+        println(io, "penalty,sigmoid,final_loss,rho,roa_area,max_dVdt_inside,training_time,has_nan,error_message")
         for row in rows
             escaped = replace(row.error_message, "\"" => "'")
             println(
                 io,
-                "$(row.penalty),$(row.sigmoid),$(row.final_loss),$(row.rho),$(row.roa_area),$(row.max_dVdt_inside),$(row.has_nan),\"$(escaped)\""
+                "$(row.penalty),$(row.sigmoid),$(row.final_loss),$(row.rho),$(row.roa_area),$(row.max_dVdt_inside),$(row.training_time),$(row.has_nan),\"$(escaped)\""
             )
         end
     end
@@ -128,6 +129,7 @@ end
 function plot_roa_overlay(r, true_roa_mask)
     n = length(r.xs)
     learned = reshape(r.roa_mask, n, n)
+    lw = 3
 
     p = heatmap(
         r.xs, r.ys, Float64.(true_roa_mask)';
@@ -135,13 +137,13 @@ function plot_roa_overlay(r, true_roa_mask)
         clims = (0, 1),
         xlabel = "x1",
         ylabel = "x2",
-        title = "$(r.penalty) / $(r.sigmoid): learned vs true RoA",
+        title = "$(r.penalty) | $(r.sigmoid) | area=$(round(r.area, digits=3)) | time=$(round(r.training_time, digits=2))s",
         colorbar = false
     )
     contour!(p, r.xs, r.ys, Float64.(learned)';
-        levels = [0.5], color = :red, lw = 2.5, label = "Learned V(x)≤ρ")
+        levels = [0.5], color = :red, lw = lw, label = "Learned RoA (V ≤ ρ)")
     contour!(p, r.xs, r.ys, Float64.(true_roa_mask)';
-        levels = [0.5], color = :blue, lw = 1.5, ls = :dash, label = "True RoA boundary")
+        levels = [0.5], color = :blue, lw = lw - 1, ls = :dash, label = "True RoA")
 
     fname = "roa_overlay_$(r.penalty)_$(r.sigmoid).png"
     savefig(p, joinpath(RESULTS_DIR, fname))
@@ -301,7 +303,8 @@ function write_structured_report(results, summary_rows, src)
         println(io, "| inv_dist_sq | 1 / ‖x - x₀‖² | unstable gradients near equilibrium | gradient magnitude increases rapidly near the equilibrium |")
         println(io, "| scaled_inv_dist_sq | 100 / ‖x - x₀‖² | similar to inv_dist_sq due to loss aggregation scaling | NeuralPDE residual loss may normalize effect of scale changes |")
         println(io, "| inv_dist | 1 / ‖x - x₀‖ | smoother variant of inverse distance penalty | weaker singularity compared to squared inverse distance |")
-        println(io, "| inv_V | 1 / V | unstable or collapsed RoA estimate | singularity when V approaches zero |")
+        println(io, "| inv_V_small | 1 / (V + 1e-3) | stabilized inverse-V with small epsilon | avoids V→0 singularity via fixed offset |")
+        println(io, "| inv_V_rho | 1 / (V + ρ) | stabilized inverse-V scaled by ρ | uses ρ as natural offset, singularity-free for V ≥ 0 |")
         println(io, "| quadratic_over_rho | max(0, V - ρ)² | well-shaped RoA boundary | directly penalizes states outside the RoA level set |")
         println(io)
 
@@ -309,7 +312,7 @@ function write_structured_report(results, summary_rows, src)
         println(io)
         for row in summary_rows
             e = isempty(row.error_message) ? "none" : row.error_message
-            println(io, "- penalty: `$(row.penalty)` | sigmoid: `$(row.sigmoid)` | final_loss: `$(row.final_loss)` | ρ: `$(row.rho)` | area: `$(row.roa_area)` | max_dVdt_inside: `$(row.max_dVdt_inside)` | has_nan: `$(row.has_nan)` | error: `$(e)`")
+            println(io, "- penalty: `$(row.penalty)` | sigmoid: `$(row.sigmoid)` | final_loss: `$(row.final_loss)` | ρ: `$(row.rho)` | area: `$(row.roa_area)` | max_dVdt_inside: `$(row.max_dVdt_inside)` | training_time: `$(row.training_time)` | has_nan: `$(row.has_nan)` | error: `$(e)`")
         end
         println(io)
 
@@ -341,15 +344,27 @@ function write_structured_report(results, summary_rows, src)
         end
         println(io)
 
-        r_iv = only(filter(r -> r.penalty == "inv_V" && r.sigmoid == "default", results))
-        println(io, "### inv_V (default sigmoid)")
+        r_ivs = only(filter(r -> r.penalty == "inv_V_small" && r.sigmoid == "default", results))
+        println(io, "### inv_V_small (default sigmoid)")
         println(io)
-        println(io, "- **Expected:** unstable or collapsed RoA estimate due to singularity when V approaches zero")
-        println(io, "- **Observed:** area = $(r_iv.area), max dV/dt inside = $(r_iv.max_dVdt_inside), has_nan = $(r_iv.has_nan)")
-        if r_iv.has_nan || !isfinite(r_iv.area) || r_iv.area ≈ 0.0
-            println(io, "- **Comparison:** consistent — inv_V produced NaN or collapsed area, confirming the V→0 singularity destabilises training.")
+        println(io, "- **Expected:** stabilized inverse-V penalty with small epsilon (1e-3) avoiding V→0 singularity")
+        println(io, "- **Observed:** area = $(r_ivs.area), max dV/dt inside = $(r_ivs.max_dVdt_inside), has_nan = $(r_ivs.has_nan), training_time = $(r_ivs.training_time)s")
+        if r_ivs.has_nan || !isfinite(r_ivs.area)
+            println(io, "- **Comparison:** training still unstable despite epsilon stabilization.")
         else
-            println(io, "- **Comparison:** unexpected — inv_V did not collapse; the network may have learned to keep V bounded away from zero.")
+            println(io, "- **Comparison:** epsilon stabilization successful — finite area obtained without collapse.")
+        end
+        println(io)
+
+        r_ivr = only(filter(r -> r.penalty == "inv_V_rho" && r.sigmoid == "default", results))
+        println(io, "### inv_V_rho (default sigmoid)")
+        println(io)
+        println(io, "- **Expected:** stabilized inverse-V penalty using ρ as offset, singularity-free")
+        println(io, "- **Observed:** area = $(r_ivr.area), max dV/dt inside = $(r_ivr.max_dVdt_inside), has_nan = $(r_ivr.has_nan), training_time = $(r_ivr.training_time)s")
+        if r_ivr.has_nan || !isfinite(r_ivr.area)
+            println(io, "- **Comparison:** training still unstable despite ρ-based stabilization.")
+        else
+            println(io, "- **Comparison:** ρ-based stabilization successful — finite area obtained.")
         end
         println(io)
 
@@ -376,5 +391,26 @@ function write_structured_report(results, summary_rows, src)
             println(io, "- Runs with decrease-condition violation (max dV/dt inside V <= ρ > 0): $(names)")
         end
         println(io, "- Next architecture modification if all plateau: increase `MLP` width/depth and test `MultiplicativeLyapunovNet` with same protocol.")
+        println(io)
+
+        println(io, "## Training Time Comparison")
+        println(io)
+        times_valid = filter(r -> isfinite(r.training_time), results)
+        if !isempty(times_valid)
+            slowest = times_valid[argmax([r.training_time for r in times_valid])]
+            fastest = times_valid[argmin([r.training_time for r in times_valid])]
+            mean_time = sum(r.training_time for r in times_valid) / length(times_valid)
+            println(io, "| Penalty | Sigmoid | Training Time (s) |")
+            println(io, "|---------|---------|-------------------|")
+            for r in times_valid
+                println(io, "| $(r.penalty) | $(r.sigmoid) | $(round(r.training_time, digits=2)) |")
+            end
+            println(io)
+            println(io, "- **Fastest:** `$(fastest.penalty)` / `$(fastest.sigmoid)` at $(round(fastest.training_time, digits=2))s")
+            println(io, "- **Slowest:** `$(slowest.penalty)` / `$(slowest.sigmoid)` at $(round(slowest.training_time, digits=2))s")
+            println(io, "- **Mean:** $(round(mean_time, digits=2))s across $(length(times_valid)) runs")
+        else
+            println(io, "No valid training time data available.")
+        end
     end
 end

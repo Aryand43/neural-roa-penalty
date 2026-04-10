@@ -1,6 +1,6 @@
 # Structured Report
 
-- Timestamp: 2026-03-22 09:31:53
+- Timestamp: 2026-04-10 11:36:33
 - NeuralLyapunov path: `C:\Users\AD\.julia\packages\NeuralLyapunov\oKiqr\src\NeuralLyapunov.jl`
 - Default sigmoid in source: `(x) -> x .≥ zero.(x)` (hard step)
 - Logistic sigmoid used in experiments: `σ(z)=1/(1+exp(-k*z))`, with `k=20`
@@ -17,25 +17,28 @@
 | inv_dist_sq | 1 / ‖x - x₀‖² | unstable gradients near equilibrium | gradient magnitude increases rapidly near the equilibrium |
 | scaled_inv_dist_sq | 100 / ‖x - x₀‖² | similar to inv_dist_sq due to loss aggregation scaling | NeuralPDE residual loss may normalize effect of scale changes |
 | inv_dist | 1 / ‖x - x₀‖ | smoother variant of inverse distance penalty | weaker singularity compared to squared inverse distance |
-| inv_V | 1 / V | unstable or collapsed RoA estimate | singularity when V approaches zero |
+| inv_V_small | 1 / (V + 1e-3) | stabilized inverse-V with small epsilon | avoids V→0 singularity via fixed offset |
+| inv_V_rho | 1 / (V + ρ) | stabilized inverse-V scaled by ρ | uses ρ as natural offset, singularity-free for V ≥ 0 |
 | quadratic_over_rho | max(0, V - ρ)² | well-shaped RoA boundary | directly penalizes states outside the RoA level set |
 
 ## Per-Run Results
 
-- penalty: `control_zero` | sigmoid: `default` | final_loss: `0.0` | ρ: `1.0` | area: `2.9064` | max_dVdt_inside: `0.003130671393868094` | has_nan: `false` | error: `none`
-- penalty: `control_zero` | sigmoid: `logistic` | final_loss: `1.5216549746737513e-11` | ρ: `1.0` | area: `2.9164` | max_dVdt_inside: `0.0007391496307473034` | has_nan: `false` | error: `none`
-- penalty: `constant_one` | sigmoid: `default` | final_loss: `0.8164062671232701` | ρ: `1.0` | area: `2.9004000000000003` | max_dVdt_inside: `0.042320306416454394` | has_nan: `false` | error: `none`
-- penalty: `constant_one` | sigmoid: `logistic` | final_loss: `0.8084920458825822` | ρ: `1.0` | area: `3.1276` | max_dVdt_inside: `0.015466163134244088` | has_nan: `false` | error: `none`
-- penalty: `inv_dist_sq` | sigmoid: `default` | final_loss: `0.15123321377798002` | ρ: `1.0` | area: `2.9175999999999997` | max_dVdt_inside: `0.0032593504696101176` | has_nan: `false` | error: `none`
-- penalty: `inv_dist_sq` | sigmoid: `logistic` | final_loss: `0.15430589237610345` | ρ: `1.0` | area: `3.0840000000000005` | max_dVdt_inside: `0.17844331466696872` | has_nan: `false` | error: `none`
-- penalty: `scaled_inv_dist_sq` | sigmoid: `default` | final_loss: `1748.4465871427296` | ρ: `1.0` | area: `2.9495999999999998` | max_dVdt_inside: `0.05415694760656234` | has_nan: `false` | error: `none`
-- penalty: `scaled_inv_dist_sq` | sigmoid: `logistic` | final_loss: `1697.4048477169388` | ρ: `1.0` | area: `3.0940000000000003` | max_dVdt_inside: `0.05423647247687331` | has_nan: `false` | error: `none`
-- penalty: `inv_dist` | sigmoid: `default` | final_loss: `0.3139007281136562` | ρ: `1.0` | area: `2.9072000000000005` | max_dVdt_inside: `0.02041326841571523` | has_nan: `false` | error: `none`
-- penalty: `inv_dist` | sigmoid: `logistic` | final_loss: `0.30941833431062626` | ρ: `1.0` | area: `3.1068000000000002` | max_dVdt_inside: `0.01874912468803494` | has_nan: `false` | error: `none`
-- penalty: `inv_V` | sigmoid: `default` | final_loss: `1.1226784589775953e-5` | ρ: `1.0` | area: `0.0016` | max_dVdt_inside: `52.32431285778799` | has_nan: `false` | error: `none`
-- penalty: `inv_V` | sigmoid: `logistic` | final_loss: `0.15060974536345745` | ρ: `1.0` | area: `1.3516` | max_dVdt_inside: `2.779808936432459` | has_nan: `false` | error: `none`
-- penalty: `quadratic_over_rho` | sigmoid: `default` | final_loss: `105.90212524702662` | ρ: `1.0` | area: `3.0356` | max_dVdt_inside: `0.23240711672411768` | has_nan: `false` | error: `none`
-- penalty: `quadratic_over_rho` | sigmoid: `logistic` | final_loss: `96.9347660333508` | ρ: `1.0` | area: `3.052` | max_dVdt_inside: `0.12404547271298605` | has_nan: `false` | error: `none`
+- penalty: `control_zero` | sigmoid: `default` | final_loss: `0.0` | ρ: `1.0` | area: `2.9064` | max_dVdt_inside: `0.003130671393868094` | training_time: `55.58400011062622` | has_nan: `false` | error: `none`
+- penalty: `control_zero` | sigmoid: `logistic` | final_loss: `2.0426950068473098e-11` | ρ: `1.0` | area: `2.9672000000000005` | max_dVdt_inside: `0.0039741924952764055` | training_time: `5.794999837875366` | has_nan: `false` | error: `none`
+- penalty: `constant_one` | sigmoid: `default` | final_loss: `0.808597481760882` | ρ: `1.0` | area: `2.9104` | max_dVdt_inside: `0.046152988843279986` | training_time: `3.8320000171661377` | has_nan: `false` | error: `none`
+- penalty: `constant_one` | sigmoid: `logistic` | final_loss: `0.7993816143137428` | ρ: `1.0` | area: `3.072` | max_dVdt_inside: `0.09924844106356528` | training_time: `4.224999904632568` | has_nan: `false` | error: `none`
+- penalty: `inv_dist_sq` | sigmoid: `default` | final_loss: `0.1552937318199587` | ρ: `1.0` | area: `2.918` | max_dVdt_inside: `0.023539065504716163` | training_time: `2.0820000171661377` | has_nan: `false` | error: `none`
+- penalty: `inv_dist_sq` | sigmoid: `logistic` | final_loss: `0.15425024660380138` | ρ: `1.0` | area: `3.1084000000000005` | max_dVdt_inside: `0.023726920333461857` | training_time: `5.437999963760376` | has_nan: `false` | error: `none`
+- penalty: `scaled_inv_dist_sq` | sigmoid: `default` | final_loss: `1552.9373181995877` | ρ: `1.0` | area: `2.918` | max_dVdt_inside: `0.023539065504716163` | training_time: `1.5210001468658447` | has_nan: `false` | error: `none`
+- penalty: `scaled_inv_dist_sq` | sigmoid: `logistic` | final_loss: `1502.4840541512265` | ρ: `1.0` | area: `3.0707999999999998` | max_dVdt_inside: `0.15771116754693446` | training_time: `1.9470000267028809` | has_nan: `false` | error: `none`
+- penalty: `inv_dist` | sigmoid: `default` | final_loss: `0.31553499619999803` | ρ: `1.0` | area: `2.918` | max_dVdt_inside: `0.023291029088036444` | training_time: `2.4149999618530273` | has_nan: `false` | error: `none`
+- penalty: `inv_dist` | sigmoid: `logistic` | final_loss: `0.2972606281946578` | ρ: `1.0` | area: `3.1296` | max_dVdt_inside: `0.011495752290922215` | training_time: `5.608000040054321` | has_nan: `false` | error: `none`
+- penalty: `inv_V_small` | sigmoid: `default` | final_loss: `10.73090584339218` | ρ: `1.0` | area: `0.0404` | max_dVdt_inside: `84.11204668715888` | training_time: `1.4609999656677246` | has_nan: `false` | error: `none`
+- penalty: `inv_V_small` | sigmoid: `logistic` | final_loss: `NaN` | ρ: `NaN` | area: `NaN` | max_dVdt_inside: `NaN` | training_time: `NaN` | has_nan: `true` | error: `AssertionError: isfinite(phi_c) && isfinite(dphi_c)`
+- penalty: `inv_V_rho` | sigmoid: `default` | final_loss: `NaN` | ρ: `NaN` | area: `NaN` | max_dVdt_inside: `NaN` | training_time: `NaN` | has_nan: `true` | error: `AssertionError: b > a`
+- penalty: `inv_V_rho` | sigmoid: `logistic` | final_loss: `NaN` | ρ: `NaN` | area: `NaN` | max_dVdt_inside: `NaN` | training_time: `NaN` | has_nan: `true` | error: `AssertionError: isfinite(phi_d) && isfinite(gphi)`
+- penalty: `quadratic_over_rho` | sigmoid: `default` | final_loss: `85.23712543906419` | ρ: `1.0` | area: `3.0484000000000004` | max_dVdt_inside: `0.13978296082359337` | training_time: `2.491000175476074` | has_nan: `false` | error: `none`
+- penalty: `quadratic_over_rho` | sigmoid: `logistic` | final_loss: `83.48128896399297` | ρ: `1.0` | area: `3.0336000000000003` | max_dVdt_inside: `0.16822368973977558` | training_time: `2.746999979019165` | has_nan: `false` | error: `none`
 
 ## Expected vs Observed Behavior
 
@@ -48,24 +51,52 @@
 ### constant_one (logistic sigmoid)
 
 - **Expected:** moderate RoA expansion due to uniform penalty with smooth sigmoid gating
-- **Observed:** area = 3.1276, max dV/dt inside = 0.015466163134244088
+- **Observed:** area = 3.072, max dV/dt inside = 0.09924844106356528
 - **Comparison:** consistent — constant_one with logistic sigmoid achieved at-or-above-median area, matching the moderate expansion expectation.
 
-### inv_V (default sigmoid)
+### inv_V_small (default sigmoid)
 
-- **Expected:** unstable or collapsed RoA estimate due to singularity when V approaches zero
-- **Observed:** area = 0.0016, max dV/dt inside = 52.32431285778799, has_nan = false
-- **Comparison:** unexpected — inv_V did not collapse; the network may have learned to keep V bounded away from zero.
+- **Expected:** stabilized inverse-V penalty with small epsilon (1e-3) avoiding V→0 singularity
+- **Observed:** area = 0.0404, max dV/dt inside = 84.11204668715888, has_nan = false, training_time = 1.4609999656677246s
+- **Comparison:** epsilon stabilization successful — finite area obtained without collapse.
+
+### inv_V_rho (default sigmoid)
+
+- **Expected:** stabilized inverse-V penalty using ρ as offset, singularity-free
+- **Observed:** area = NaN, max dV/dt inside = NaN, has_nan = true, training_time = NaNs
+- **Comparison:** training still unstable despite ρ-based stabilization.
 
 ## Adaptive Reweighting Check
 
 - No adaptive reweighting configured in this framework (QuadratureTraining without adaptive loss callbacks).
-- Area delta for `scaled_inv_dist_sq` vs `inv_dist_sq` (default sigmoid): 0.03200000000000003
-- Area delta for `scaled_inv_dist_sq` vs `inv_dist_sq` (logistic sigmoid): 0.009999999999999787
+- Area delta for `scaled_inv_dist_sq` vs `inv_dist_sq` (default sigmoid): 0.0
+- Area delta for `scaled_inv_dist_sq` vs `inv_dist_sq` (logistic sigmoid): 0.037600000000000744
 
 ## Hypothesis Validation
 
-- Largest RoA area (default sigmoid): `quadratic_over_rho` with area `3.0356`
-- Largest RoA area (logistic sigmoid): `constant_one` with area `3.1276`
-- Runs with decrease-condition violation (max dV/dt inside V <= ρ > 0): control_zero/default, control_zero/logistic, constant_one/default, constant_one/logistic, inv_dist_sq/default, inv_dist_sq/logistic, scaled_inv_dist_sq/default, scaled_inv_dist_sq/logistic, inv_dist/default, inv_dist/logistic, inv_V/default, inv_V/logistic, quadratic_over_rho/default, quadratic_over_rho/logistic
+- Largest RoA area (default sigmoid): `quadratic_over_rho` with area `3.0484000000000004`
+- Largest RoA area (logistic sigmoid): `inv_dist` with area `3.1296`
+- Runs with decrease-condition violation (max dV/dt inside V <= ρ > 0): control_zero/default, control_zero/logistic, constant_one/default, constant_one/logistic, inv_dist_sq/default, inv_dist_sq/logistic, scaled_inv_dist_sq/default, scaled_inv_dist_sq/logistic, inv_dist/default, inv_dist/logistic, inv_V_small/default, quadratic_over_rho/default, quadratic_over_rho/logistic
 - Next architecture modification if all plateau: increase `MLP` width/depth and test `MultiplicativeLyapunovNet` with same protocol.
+
+## Training Time Comparison
+
+| Penalty | Sigmoid | Training Time (s) |
+|---------|---------|-------------------|
+| control_zero | default | 55.58 |
+| control_zero | logistic | 5.79 |
+| constant_one | default | 3.83 |
+| constant_one | logistic | 4.22 |
+| inv_dist_sq | default | 2.08 |
+| inv_dist_sq | logistic | 5.44 |
+| scaled_inv_dist_sq | default | 1.52 |
+| scaled_inv_dist_sq | logistic | 1.95 |
+| inv_dist | default | 2.41 |
+| inv_dist | logistic | 5.61 |
+| inv_V_small | default | 1.46 |
+| quadratic_over_rho | default | 2.49 |
+| quadratic_over_rho | logistic | 2.75 |
+
+- **Fastest:** `inv_V_small` / `default` at 1.46s
+- **Slowest:** `control_zero` / `default` at 55.58s
+- **Mean:** 7.32s across 13 runs
