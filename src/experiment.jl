@@ -1,11 +1,12 @@
 function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmoid_fn;
-        adam_iters = 300, bfgs_iters = 300, ρ = 1.0)
+        adam_iters = 300, bfgs_iters = 300, ρ = 1.0, log_scale = false)
     structure = NoAdditionalStructure()
     minimization_condition = DontCheckNonnegativity()
     decrease_condition = make_RoA_aware(
         AsymptoticStability();
         out_of_RoA_penalty = penalty_fn,
         sigmoid = sigmoid_fn,
+        log_scale,
         ρ = ρ
     )
     spec = NeuralLyapunovSpecification(structure, minimization_condition, decrease_condition)
