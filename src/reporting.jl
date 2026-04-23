@@ -79,6 +79,7 @@ function save_summary_csv(results)
         (
             penalty = r.penalty,
             sigmoid = r.sigmoid,
+            log_scale = r.log_scale,
             final_loss = Float64(r.final_loss),
             rho = Float64(r.rho),
             roa_area = Float64(r.area),
@@ -90,12 +91,30 @@ function save_summary_csv(results)
     ]
     out = joinpath(RESULTS_DIR, "summary.csv")
     open(out, "w") do io
-        println(io, "penalty,sigmoid,final_loss,rho,roa_area,max_dVdt_inside,training_time,has_nan,error_message")
+        println(io, "penalty,sigmoid,log_scale,finalloss,rho,roaarea,maxdVdtinside,trainingtime,hasnan,errormessage")
         for row in rows
             escaped = replace(row.error_message, "\"" => "'")
             println(
                 io,
-                "$(row.penalty),$(row.sigmoid),$(row.final_loss),$(row.rho),$(row.roa_area),$(row.max_dVdt_inside),$(row.training_time),$(row.has_nan),\"$(escaped)\""
+                row.penalty,
+                ",",
+                row.sigmoid,
+                ",",
+                row.log_scale,
+                ",",
+                row.final_loss,
+                ",",
+                row.rho,
+                ",",
+                row.roa_area,
+                ",",
+                row.max_dVdt_inside,
+                ",",
+                row.training_time,
+                ",",
+                row.has_nan,
+                ",",
+                "\"$(escaped)\"",
             )
         end
     end
@@ -273,10 +292,10 @@ function write_structured_report(results, summary_rows, src)
     best_default = pick_max_area(default_rows)
     best_logistic = pick_max_area(logistic_rows)
 
-    inv_default = only(filter(r -> r.penalty == "inv_dist_sq" && r.sigmoid == "default", results))
-    scaled_default = only(filter(r -> r.penalty == "scaled_inv_dist_sq" && r.sigmoid == "default", results))
-    inv_logistic = only(filter(r -> r.penalty == "inv_dist_sq" && r.sigmoid == "logistic", results))
-    scaled_logistic = only(filter(r -> r.penalty == "scaled_inv_dist_sq" && r.sigmoid == "logistic", results))
+    inv_default = only(filter(r -> r.penalty == "inv_dist_sq" && r.sigmoid == "default" && !r.log_scale, results))
+    scaled_default = only(filter(r -> r.penalty == "scaled_inv_dist_sq" && r.sigmoid == "default" && !r.log_scale, results))
+    inv_logistic = only(filter(r -> r.penalty == "inv_dist_sq" && r.sigmoid == "logistic" && !r.log_scale, results))
+    scaled_logistic = only(filter(r -> r.penalty == "scaled_inv_dist_sq" && r.sigmoid == "logistic" && !r.log_scale, results))
 
     adaptive_note = "No adaptive reweighting configured in this framework (QuadratureTraining without adaptive loss callbacks)."
     scale_effect_default = abs(scaled_default.area - inv_default.area)
@@ -313,14 +332,14 @@ function write_structured_report(results, summary_rows, src)
         println(io)
         for row in summary_rows
             e = isempty(row.error_message) ? "none" : row.error_message
-            println(io, "- penalty: `$(row.penalty)` | sigmoid: `$(row.sigmoid)` | final_loss: `$(row.final_loss)` | ρ: `$(row.rho)` | area: `$(row.roa_area)` | max_dVdt_inside: `$(row.max_dVdt_inside)` | training_time: `$(row.training_time)` | has_nan: `$(row.has_nan)` | error: `$(e)`")
+            println(io, "- penalty: `$(row.penalty)` | sigmoid: `$(row.sigmoid)` | log_scale: `$(row.log_scale)` | final_loss: `$(row.final_loss)` | ρ: `$(row.rho)` | area: `$(row.roa_area)` | max_dVdt_inside: `$(row.max_dVdt_inside)` | training_time: `$(row.training_time)` | has_nan: `$(row.has_nan)` | error: `$(e)`")
         end
         println(io)
 
         println(io, "## Expected vs Observed Behavior")
         println(io)
 
-        r_cz = only(filter(r -> r.penalty == "control_zero" && r.sigmoid == "default", results))
+        r_cz = only(filter(r -> r.penalty == "control_zero" && r.sigmoid == "default" && !r.log_scale, results))
         println(io, "### control_zero (default sigmoid)")
         println(io)
         println(io, "- **Expected:** smallest RoA estimate since there is no penalty outside the RoA")
@@ -332,7 +351,7 @@ function write_structured_report(results, summary_rows, src)
         end
         println(io)
 
-        r_co = only(filter(r -> r.penalty == "constant_one" && r.sigmoid == "logistic", results))
+        r_co = only(filter(r -> r.penalty == "constant_one" && r.sigmoid == "logistic" && !r.log_scale, results))
         println(io, "### constant_one (logistic sigmoid)")
         println(io)
         println(io, "- **Expected:** moderate RoA expansion due to uniform penalty with smooth sigmoid gating")
@@ -345,7 +364,7 @@ function write_structured_report(results, summary_rows, src)
         end
         println(io)
 
-        r_ivs = only(filter(r -> r.penalty == "inv_V_small" && r.sigmoid == "default", results))
+        r_ivs = only(filter(r -> r.penalty == "inv_V_small" && r.sigmoid == "default" && !r.log_scale, results))
         println(io, "### inv_V_small (default sigmoid)")
         println(io)
         println(io, "- **Expected:** stabilized inverse-V penalty with small epsilon (1e-3) avoiding V→0 singularity")
@@ -357,7 +376,7 @@ function write_structured_report(results, summary_rows, src)
         end
         println(io)
 
-        r_ivr = only(filter(r -> r.penalty == "inv_V_rho" && r.sigmoid == "default", results))
+        r_ivr = only(filter(r -> r.penalty == "inv_V_rho" && r.sigmoid == "default" && !r.log_scale, results))
         println(io, "### inv_V_rho (default sigmoid)")
         println(io)
         println(io, "- **Expected:** stabilized inverse-V penalty using ρ as offset, singularity-free")

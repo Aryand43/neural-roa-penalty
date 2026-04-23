@@ -1,5 +1,5 @@
 function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmoid_fn;
-        adam_iters = 300, bfgs_iters = 300, ρ = 1.0, log_scale = false)
+        adam_iters = 300, bfgs_iters = 300, ρ = 1.0, log_scale::Bool = false)
     structure = NoAdditionalStructure()
     minimization_condition = DontCheckNonnegativity()
     decrease_condition = make_RoA_aware(
@@ -60,6 +60,7 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     return (
         penalty = penalty_name,
         sigmoid = sigmoid_name,
+        log_scale = log_scale,
         final_loss = isempty(losses) ? NaN : losses[end],
         rho = decrease_condition.ρ,
         area = grid.area,
@@ -76,11 +77,12 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     )
 end
 
-function failed_result(penalty_name, sigmoid_name, err)
+function failed_result(penalty_name, sigmoid_name, err; log_scale::Bool = false)
     msg = sprint(showerror, err)
     return (
         penalty = penalty_name,
         sigmoid = sigmoid_name,
+        log_scale = log_scale,
         final_loss = NaN,
         rho = NaN,
         area = NaN,

@@ -41,12 +41,18 @@ function main()
                 Random.seed!(2026)
                 setup = build_setup(; seed = 2026, hidden = 32)
 
-                println("Training penalty=$(pname), sigmoid=$(sname)")
+                println("Training penalty=$(pname), sigmoid=$(sname), log_scale=$(log_scale)")
                 res = try
-                    run_one_experiment(setup, pname, pfn, sname, sfn; adam_iters = adam_iters, bfgs_iters = bfgs_iters, ρ = 1.0, log_scale)
+                    run_one_experiment(
+                        setup, pname, pfn, sname, sfn;
+                        adam_iters = adam_iters,
+                        bfgs_iters = bfgs_iters,
+                        ρ = 1.0,
+                        log_scale = log_scale,
+                    )
                 catch err
                     @warn "Experiment failed" penalty = pname sigmoid = sname error = sprint(showerror, err)
-                    failed_result(pname, sname, err)
+                    failed_result(pname, sname, err; log_scale = log_scale)
                 end
                 push!(results, res)
             end
