@@ -37,18 +37,25 @@ function main()
     bfgs_iters = 20
     for (pname, pfn) in penalties
         for (sname, sfn) in sigmoid_list
+            for log_scale in (false, true)
+                Random.seed!(2026)
+                setup = build_setup(; seed = 2026, hidden = 32)
 
-            Random.seed!(2026)
-            setup = build_setup(; seed = 2026, hidden = 32)
-
-            println("Training penalty=$(pname), sigmoid=$(sname)")
-            res = try
-                run_one_experiment(setup, pname, pfn, sname, sfn; adam_iters = adam_iters, bfgs_iters = bfgs_iters, ρ = 1.0)
-            catch err
-                @warn "Experiment failed" penalty = pname sigmoid = sname error = sprint(showerror, err)
-                failed_result(pname, sname, err)
+                println("Training penalty=$(pname), sigmoid=$(sname), log_scale=$(log_scale)")
+                res = try
+                    run_one_experiment(
+                        setup, pname, pfn, sname, sfn;
+                        adam_iters = adam_iters,
+                        bfgs_iters = bfgs_iters,
+                        ρ = 1.0,
+                        log_scale = log_scale,
+                    )
+                catch err
+                    @warn "Experiment failed" penalty = pname sigmoid = sname error = sprint(showerror, err)
+                    failed_result(pname, sname, err; log_scale = log_scale)
+                end
+                push!(results, res)
             end
-            push!(results, res)
         end
     end
 
