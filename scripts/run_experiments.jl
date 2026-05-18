@@ -26,7 +26,8 @@ function main()
     write_source_report(src)
 
     println("Building controlled setup...")
-    penalties = make_penalty_list()
+    ρ_exp = 1.0
+    penalties = make_penalty_list(; ρ = ρ_exp)
     sigmoid_list = [
         ("default", hard_step_sigmoid),
         ("logistic", logistic_sigmoid(20.0)),
@@ -35,24 +36,40 @@ function main()
     results = NamedTuple[]
     adam_iters = 20
     bfgs_iters = 20
-    for (pname, pfn) in penalties
+    # Deterministic RNG seed per grid cell (recorded in summary CSV as `rng_seed`).
+    base_seed = 2026
+    run_ix = 0
+    for (pname, pfn, inv_V_a, inv_V_a_regime) in penalties
         for (sname, sfn) in sigmoid_list
             for log_scale in (false, true)
-                Random.seed!(2026)
-                setup = build_setup(; seed = 2026, hidden = 32)
+                run_ix += 1
+                rng_seed = base_seed + run_ix
+                Random.seed!(rng_seed)
+                setup = build_setup(; seed = rng_seed, hidden = 32)
 
-                println("Training penalty=$(pname), sigmoid=$(sname), log_scale=$(log_scale)")
+                println("Training penalty=$(pname), sigmoid=$(sname), log_scale=$(log_scale), rng_seed=$(rng_seed)")
                 res = try
                     run_one_experiment(
                         setup, pname, pfn, sname, sfn;
                         adam_iters = adam_iters,
                         bfgs_iters = bfgs_iters,
-                        ρ = 1.0,
+                        ρ = ρ_exp,
                         log_scale = log_scale,
+                        rng_seed = rng_seed,
+                        inv_V_a = Float64(inv_V_a),
+                        inv_V_a_regime = inv_V_a_regime,
                     )
                 catch err
                     @warn "Experiment failed" penalty = pname sigmoid = sname error = sprint(showerror, err)
-                    failed_result(pname, sname, err; log_scale = log_scale)
+                    failed_result(
+                        pname,
+                        sname,
+                        err;
+                        log_scale = log_scale,
+                        rng_seed = rng_seed,
+                        inv_V_a = Float64(inv_V_a),
+                        inv_V_a_regime = inv_V_a_regime,
+                    )
                 end
                 push!(results, res)
             end

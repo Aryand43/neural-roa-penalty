@@ -1,5 +1,8 @@
 function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmoid_fn;
-        adam_iters = 300, bfgs_iters = 300, ρ = 1.0, log_scale::Bool = false)
+        adam_iters = 300, bfgs_iters = 300, ρ = 1.0, log_scale::Bool = false,
+        rng_seed::Int = -1,
+        inv_V_a::Float64 = NaN,
+        inv_V_a_regime::AbstractString = "")
     structure = NoAdditionalStructure()
     minimization_condition = DontCheckNonnegativity()
     decrease_condition = make_RoA_aware(
@@ -32,6 +35,7 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     )
     prob = discretize(pde_system, discretization)
 
+    # Wall-clock time for Adam + BFGS (reported as `train_time_seconds` in summary CSV).
     start_time = time()
 
     adam_res = Optimization.solve(prob, Adam(); maxiters = adam_iters)
@@ -61,6 +65,9 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
         penalty = penalty_name,
         sigmoid = sigmoid_name,
         log_scale = log_scale,
+        rng_seed = rng_seed,
+        inv_V_a = inv_V_a,
+        inv_V_a_regime = String(inv_V_a_regime),
         final_loss = isempty(losses) ? NaN : losses[end],
         rho = decrease_condition.ρ,
         area = grid.area,
@@ -77,12 +84,18 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     )
 end
 
-function failed_result(penalty_name, sigmoid_name, err; log_scale::Bool = false)
+function failed_result(penalty_name, sigmoid_name, err; log_scale::Bool = false,
+        rng_seed::Int = -1,
+        inv_V_a::Float64 = NaN,
+        inv_V_a_regime::AbstractString = "")
     msg = sprint(showerror, err)
     return (
         penalty = penalty_name,
         sigmoid = sigmoid_name,
         log_scale = log_scale,
+        rng_seed = rng_seed,
+        inv_V_a = inv_V_a,
+        inv_V_a_regime = String(inv_V_a_regime),
         final_loss = NaN,
         rho = NaN,
         area = NaN,
