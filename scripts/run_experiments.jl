@@ -28,6 +28,14 @@ function main()
     println("Building controlled setup...")
     ρ_exp = 1.0
     penalties = make_penalty_list(; ρ = ρ_exp)
+    # Use a single fixed seed across the entire comparison grid by default.
+    # Override explicitly by setting `ROA_EXPERIMENT_SEED` in the environment.
+    seed = try
+        parse(Int, get(ENV, "ROA_EXPERIMENT_SEED", "2026"))
+    catch
+        2026
+    end
+    println("Experiment RNG seed: $(seed)")
     sigmoid_list = [
         ("default", hard_step_sigmoid),
         ("logistic", logistic_sigmoid(20.0)),
@@ -36,14 +44,11 @@ function main()
     results = NamedTuple[]
     adam_iters = 20
     bfgs_iters = 20
-    # Deterministic RNG seed per grid cell (recorded in summary CSV as `rng_seed`).
-    base_seed = 2026
-    run_ix = 0
     for (pname, pfn, inv_V_a, inv_V_a_regime) in penalties
         for (sname, sfn) in sigmoid_list
             for log_scale in (false, true)
-                run_ix += 1
-                rng_seed = base_seed + run_ix
+                # Re-seed before every trial so each configuration starts from an identical RNG state.
+                rng_seed = seed
                 Random.seed!(rng_seed)
                 setup = build_setup(; seed = rng_seed, hidden = 32)
 
@@ -79,7 +84,7 @@ function main()
     save_loss_csv(results)
     summary_rows = save_summary_csv(results)
     maybe_make_plots(results)
-    write_structured_report(results, summary_rows, src)
+    write_structured_report(results, summary_rows, src; seed = seed)
 
     println("Done. Outputs written to: $(RESULTS_DIR)")
 end

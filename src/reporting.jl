@@ -295,7 +295,7 @@ function write_source_report(src)
     end
 end
 
-function write_structured_report(results, summary_rows, src)
+function write_structured_report(results, summary_rows, src; seed = nothing)
     out = joinpath(RESULTS_DIR, "structured_report.md")
     nl_path = src.info["pathof(NeuralLyapunov)"]
     ts = Dates.format(now(), "yyyy-mm-dd HH:MM:SS")
@@ -327,6 +327,9 @@ function write_structured_report(results, summary_rows, src)
         println(io, "# Structured Report")
         println(io)
         println(io, "- Timestamp: $(ts)")
+        if seed !== nothing
+            println(io, "- Seed: `$(seed)`")
+        end
         println(io, "- NeuralLyapunov path: `$(nl_path)`")
         println(io, "- Default sigmoid in source: `(x) -> x .≥ zero.(x)` (hard step)")
         println(io, "- Logistic sigmoid used in experiments: `σ(z)=1/(1+exp(-k*z))`, with `k=20`")
@@ -352,9 +355,19 @@ function write_structured_report(results, summary_rows, src)
 
         println(io, "## Per-Run Results")
         println(io)
+        fmt_num(x; digits = 6) = isfinite(x) ? string(round(Float64(x), digits = digits)) : "NaN"
+        fmt_loss(x) = isfinite(x) ? @sprintf("%.6g", Float64(x)) : "NaN"
+        fmt_time(x) = isfinite(x) ? @sprintf("%.2f", Float64(x)) : "NaN"
+        fmt_bool(x) = x ? "true" : "false"
+        fmt_err(s) = isempty(s) ? "none" : replace(s, "\n" => " ")
+
+        println(io, "| penalty | sigmoid | log_scale | rng_seed | inv_V_a | inv_V_a_regime | final_loss | ρ | roa_area | max_dVdt_inside | train_time_s | has_nan | error |")
+        println(io, "|---|---|---|---:|---:|---|---:|---:|---:|---:|---:|---|---|")
         for row in summary_rows
-            e = isempty(row.error_message) ? "none" : row.error_message
-            println(io, "- penalty: `$(row.penalty)` | sigmoid: `$(row.sigmoid)` | log_scale: `$(row.log_scale)` | rng_seed: `$(row.rng_seed)` | inv_V_a: `$(row.inv_V_a)` | inv_V_a_regime: `$(row.inv_V_a_regime)` | final_loss: `$(row.final_loss)` | ρ: `$(row.rho)` | area: `$(row.roa_area)` | max_dVdt_inside: `$(row.max_dVdt_inside)` | train_time_seconds: `$(row.train_time_seconds)` | has_nan: `$(row.has_nan)` | error: `$(e)`")
+            println(
+                io,
+                "| `$(row.penalty)` | `$(row.sigmoid)` | `$(row.log_scale)` | $(row.rng_seed) | $(fmt_num(row.inv_V_a; digits = 6)) | `$(row.inv_V_a_regime)` | $(fmt_loss(row.final_loss)) | $(fmt_num(row.rho; digits = 4)) | $(fmt_num(row.roa_area; digits = 4)) | $(fmt_num(row.max_dVdt_inside; digits = 6)) | $(fmt_time(row.train_time_seconds)) | $(fmt_bool(row.has_nan)) | `$(fmt_err(row.error_message))` |"
+            )
         end
         println(io)
 
