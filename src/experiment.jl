@@ -1,5 +1,5 @@
 function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmoid_fn;
-        adam_iters = 300, bfgs_iters = 300, ρ = 1.0, log_scale::Bool = false,
+        adam_iters1 = 300, adam_iters2 = 300, ρ = 1.0, log_scale::Bool = false,
         rng_seed::Int = -1,
         inv_V_a::Float64 = NaN,
         inv_V_a_regime::AbstractString = "")
@@ -27,7 +27,7 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
 
     discretization = PhysicsInformedNN(
         setup.chain,
-        QuasiRandomTraining(256);
+        QuasiRandomTraining(1024);
         init_params = setup.init_params,
         init_states = setup.init_states,
         logger,
@@ -38,9 +38,9 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     # Wall-clock time for Adam + BFGS (reported as `train_time_seconds` in summary CSV).
     start_time = time()
 
-    adam_res = Optimization.solve(prob, Adam(); maxiters = adam_iters)
+    adam_res = Optimization.solve(prob, Adam(0.01); maxiters = adam_iters1)
     prob2 = Optimization.remake(prob, u0 = adam_res.u)
-    bfgs_res = Optimization.solve(prob2, BFGS(); maxiters = bfgs_iters)
+    bfgs_res = Optimization.solve(prob2, Adam(); maxiters = adam_iters2)
 
     elapsed = time() - start_time
 

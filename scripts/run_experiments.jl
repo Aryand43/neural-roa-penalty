@@ -9,7 +9,6 @@ using Printf
 using Dates
 using Optimization
 using OptimizationOptimisers: Adam
-using OptimizationOptimJL: BFGS
 using Boltz.Layers: MLP
 using Lux
 
@@ -42,8 +41,8 @@ function main()
     ]
 
     results = NamedTuple[]
-    adam_iters = 20
-    bfgs_iters = 20
+    adam_iters1 = 300
+    adam_iters2 = 300
     for (pname, pfn, inv_V_a, inv_V_a_regime) in penalties
         for (sname, sfn) in sigmoid_list
             for log_scale in (false, true)
@@ -56,8 +55,8 @@ function main()
                 res = try
                     run_one_experiment(
                         setup, pname, pfn, sname, sfn;
-                        adam_iters = adam_iters,
-                        bfgs_iters = bfgs_iters,
+                        adam_iters1,
+                        adam_iters2,
                         ρ = ρ_exp,
                         log_scale = log_scale,
                         rng_seed = rng_seed,
