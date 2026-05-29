@@ -1,11 +1,15 @@
 function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmoid_fn;
-        adam_iters = 300, bfgs_iters = 300, ρ = 1.0)
+        adam_iters1 = 300, adam_iters2 = 300, ρ = 1.0, log_scale::Bool = false,
+        rng_seed::Int = -1,
+        inv_V_a::Float64 = NaN,
+        inv_V_a_regime::AbstractString = "")
     structure = NoAdditionalStructure()
     minimization_condition = DontCheckNonnegativity()
     decrease_condition = make_RoA_aware(
         AsymptoticStability();
         out_of_RoA_penalty = penalty_fn,
         sigmoid = sigmoid_fn,
+        log_scale,
         ρ = ρ
     )
     spec = NeuralLyapunovSpecification(structure, minimization_condition, decrease_condition)
@@ -23,7 +27,7 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
 
     discretization = PhysicsInformedNN(
         setup.chain,
-        QuasiRandomTraining(256);
+        QuasiRandomTraining(1024);
         init_params = setup.init_params,
         init_states = setup.init_states,
         logger,
@@ -31,11 +35,12 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     )
     prob = discretize(pde_system, discretization)
 
+    # Wall-clock time for Adam + BFGS (reported as `train_time_seconds` in summary CSV).
     start_time = time()
 
-    adam_res = Optimization.solve(prob, Adam(); maxiters = adam_iters)
+    adam_res = Optimization.solve(prob, Adam(0.01); maxiters = adam_iters1)
     prob2 = Optimization.remake(prob, u0 = adam_res.u)
-    bfgs_res = Optimization.solve(prob2, BFGS(); maxiters = bfgs_iters)
+    bfgs_res = Optimization.solve(prob2, Adam(); maxiters = adam_iters2)
 
     elapsed = time() - start_time
 
@@ -59,6 +64,10 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     return (
         penalty = penalty_name,
         sigmoid = sigmoid_name,
+        log_scale = log_scale,
+        rng_seed = rng_seed,
+        inv_V_a = inv_V_a,
+        inv_V_a_regime = String(inv_V_a_regime),
         final_loss = isempty(losses) ? NaN : losses[end],
         rho = decrease_condition.ρ,
         area = grid.area,
@@ -75,11 +84,18 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     )
 end
 
-function failed_result(penalty_name, sigmoid_name, err)
+function failed_result(penalty_name, sigmoid_name, err; log_scale::Bool = false,
+        rng_seed::Int = -1,
+        inv_V_a::Float64 = NaN,
+        inv_V_a_regime::AbstractString = "")
     msg = sprint(showerror, err)
     return (
         penalty = penalty_name,
         sigmoid = sigmoid_name,
+        log_scale = log_scale,
+        rng_seed = rng_seed,
+        inv_V_a = inv_V_a,
+        inv_V_a_regime = String(inv_V_a_regime),
         final_loss = NaN,
         rho = NaN,
         area = NaN,

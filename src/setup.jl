@@ -7,7 +7,7 @@ function build_setup(; seed = 1234, hidden = 32)
     fixed_point = [0.0, 0.0]
     dim_state = length(lb)
 
-    base = MLP(dim_state, (hidden, hidden, 1), tanh)
+    base = MLP(dim_state, (hidden, hidden, hidden, 1), tanh)
     chain = AdditiveLyapunovNet(base; dim_ϕ = 1, fixed_point = fixed_point)
     init_params, init_states = Lux.setup(rng, chain)
     init_params = Lux.f64(init_params)

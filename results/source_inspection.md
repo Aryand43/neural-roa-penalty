@@ -1,54 +1,54 @@
 # Source Inspection
 
 ## Runtime
-- pathof(NeuralLyapunov): `C:\Users\AD\.julia\packages\NeuralLyapunov\oKiqr\src\NeuralLyapunov.jl`
+- pathof(NeuralLyapunov): `/home/nklugman/.julia/packages/NeuralLyapunov/ykuJS/src/NeuralLyapunov.jl`
 
 ### methods(make_RoA_aware)
 ```julia
 # 1 method for generic function "make_RoA_aware" from NeuralLyapunov:
- [1] make_RoA_aware(cond::NeuralLyapunov.AbstractLyapunovDecreaseCondition; ρ, out_of_RoA_penalty, sigmoid)
-     @ C:\Users\AD\.julia\packages\NeuralLyapunov\oKiqr\src\decrease_conditions_RoA_aware.jl:180
+ [1] make_RoA_aware(cond::NeuralLyapunov.AbstractLyapunovDecreaseCondition; ρ, out_of_RoA_penalty, sigmoid, log_scale)
+     @ ~/.julia/packages/NeuralLyapunov/ykuJS/src/decrease_conditions_RoA_aware.jl:202
 ```
 
 ### methods(AdditiveLyapunovNet)
 ```julia
 # 1 method for generic function "AdditiveLyapunovNet" from NeuralLyapunov:
  [1] AdditiveLyapunovNet(ϕ; ψ, m, r, dim_ϕ, kwargs...)
-     @ C:\Users\AD\.julia\packages\NeuralLyapunov\oKiqr\src\lux_structures.jl:43
+     @ ~/.julia/packages/NeuralLyapunov/ykuJS/src/lux_structures.jl:43
 ```
 
 ### methods(AsymptoticStability)
 ```julia
 # 1 method for generic function "AsymptoticStability" from NeuralLyapunov:
  [1] AsymptoticStability(; C, strength, rectifier)
-     @ C:\Users\AD\.julia\packages\NeuralLyapunov\oKiqr\src\decrease_conditions.jl:168
+     @ ~/.julia/packages/NeuralLyapunov/ykuJS/src/decrease_conditions.jl:192
 ```
 
 ### methods(DontCheckNonnegativity)
 ```julia
 # 1 method for generic function "DontCheckNonnegativity" from NeuralLyapunov:
  [1] DontCheckNonnegativity(; check_fixed_point)
-     @ C:\Users\AD\.julia\packages\NeuralLyapunov\oKiqr\src\minimization_conditions.jl:208
+     @ ~/.julia/packages/NeuralLyapunov/ykuJS/src/minimization_conditions.jl:219
 ```
 
 ### methods(NoAdditionalStructure)
 ```julia
 # 1 method for generic function "NoAdditionalStructure" from NeuralLyapunov:
  [1] NoAdditionalStructure()
-     @ C:\Users\AD\.julia\packages\NeuralLyapunov\oKiqr\src\structure_specification.jl:23
+     @ ~/.julia/packages/NeuralLyapunov/ykuJS/src/structure_specification.jl:23
 ```
 
 ### lowered(make_RoA_aware)
 ```julia
 CodeInfo(
-1 ─ %1 = NeuralLyapunov.:(var"#make_RoA_aware#109")
-│   %2 = NeuralLyapunov.:(var"#110#114")
-│        #110 = %new(%2)
-│   %4 = #110
-│   %5 = NeuralLyapunov.:(var"#111#115")
-│        #111 = %new(%5)
-│   %7 = #111
-│   %8 = (%1)(1.0, %4, %7, #self#, cond)
+1 ─ %1 = NeuralLyapunov.:(var"#make_RoA_aware#104")
+│   %2 = NeuralLyapunov.:(var"#make_RoA_aware##0#make_RoA_aware##1")
+│        #105 = %new(%2)
+│   %4 = #105
+│   %5 = NeuralLyapunov.:(var"#make_RoA_aware##2#make_RoA_aware##3")
+│        #106 = %new(%5)
+│   %7 = #106
+│   %8 =   dynamic (%1)(1.0, %4, %7, false, #self#, cond)
 └──      return %8
 )
 ```
@@ -62,7 +62,7 @@ function _NeuralLyapunovPDESystem(
         fixed_point,
         state,
         params,
-        defaults,
+        initial_conditions,
         policy_search::Bool,
         name
     )::PDESystem
@@ -167,7 +167,7 @@ function _NeuralLyapunovPDESystem(
         state,
         φ(state),
         params;
-        defaults,
+        initial_conditions,
         name
     )
 end
@@ -179,13 +179,15 @@ function make_RoA_aware(
         cond::AbstractLyapunovDecreaseCondition;
         ρ = 1.0,
         out_of_RoA_penalty = (V, dVdt, state, fixed_point, _ρ) -> 0.0,
-        sigmoid = (x) -> x .≥ zero.(x)
+        sigmoid = (x) -> x .≥ zero.(x),
+        log_scale = false
     )::RoAAwareDecreaseCondition
     return RoAAwareDecreaseCondition(
         cond,
         sigmoid,
         ρ,
-        out_of_RoA_penalty
+        out_of_RoA_penalty,
+        log_scale
     )
 end
 ```
@@ -291,14 +293,16 @@ end
 function get_decrease_condition(cond::RoAAwareDecreaseCondition)
     if check_decrease(cond)
         in_RoA_penalty = get_decrease_condition(cond.cond)
+        log_scale = cond.log_scale
         return function (V, dVdt, x, fixed_point)
             _V = V(x)
             _V = _V isa AbstractVector ? _V[] : _V
             _V̇ = dVdt(x)
             _V̇ = _V̇ isa AbstractVector ? _V̇[] : _V̇
+            scaled_V = log_scale ? log(_V / cond.ρ) : _V - cond.ρ
             return [
-                cond.sigmoid(cond.ρ - _V) * in_RoA_penalty(V, dVdt, x, fixed_point),
-                cond.sigmoid(_V - cond.ρ) *
+                cond.sigmoid(-scaled_V) * in_RoA_penalty(V, dVdt, x, fixed_point),
+                cond.sigmoid(scaled_V) *
                     cond.out_of_RoA_penalty(_V, _V̇, x, fixed_point, cond.ρ),
             ]
         end
