@@ -1,7 +1,7 @@
 # Source Inspection
 
 ## Runtime
-- pathof(NeuralLyapunov): `/Users/aryand/.julia/packages/NeuralLyapunov/ykuJS/src/NeuralLyapunov.jl`
+- pathof(NeuralLyapunov): `/home/nklugman/.julia/packages/NeuralLyapunov/ykuJS/src/NeuralLyapunov.jl`
 
 ### methods(make_RoA_aware)
 ```julia

@@ -1,1 +1,3 @@
 No valid contour data available; skipped roa_contours.png generation.
+No valid contour data available; skipped roa_contours.png generation.
+No valid results with xs/ys/roa_mask; skipped RoA overlay plots.
