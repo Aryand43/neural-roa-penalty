@@ -1,10 +1,20 @@
-function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmoid_fn;
-        adam_iters = 300, bfgs_iters = 300, ρ = 1.0)
+function run_one_experiment(
+    setup,
+    penalty_name,
+    penalty_fn,
+    sigmoid_name,
+    sigmoid_fn;
+    scaling::Symbol = :linear,
+    adam_iters = 300,
+    bfgs_iters = 300,
+    ρ = 1.0,
+)
     structure = NoAdditionalStructure()
     minimization_condition = DontCheckNonnegativity()
+    out_penalty = adjust_out_of_roa_gate(penalty_fn, sigmoid_fn, scaling)
     decrease_condition = make_RoA_aware(
         AsymptoticStability();
-        out_of_RoA_penalty = penalty_fn,
+        out_of_RoA_penalty = out_penalty,
         sigmoid = sigmoid_fn,
         ρ = ρ
     )
@@ -59,6 +69,7 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     return (
         penalty = penalty_name,
         sigmoid = sigmoid_name,
+        scaling = scaling_mode_label(scaling),
         final_loss = isempty(losses) ? NaN : losses[end],
         rho = decrease_condition.ρ,
         area = grid.area,
@@ -75,11 +86,12 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     )
 end
 
-function failed_result(penalty_name, sigmoid_name, err)
+function failed_result(penalty_name, sigmoid_name, scaling, err)
     msg = sprint(showerror, err)
     return (
         penalty = penalty_name,
         sigmoid = sigmoid_name,
+        scaling = scaling_mode_label(scaling),
         final_loss = NaN,
         rho = NaN,
         area = NaN,

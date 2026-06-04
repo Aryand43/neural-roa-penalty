@@ -65,10 +65,10 @@ end
 function save_loss_csv(results)
     out = joinpath(RESULTS_DIR, "training_losses.csv")
     open(out, "w") do io
-        println(io, "penalty,sigmoid,iteration,loss")
+        println(io, "penalty,sigmoid,scaling,iteration,loss")
         for r in results
             for (it, loss) in zip(r.iterations, r.losses)
-                println(io, "$(r.penalty),$(r.sigmoid),$(Int(it)),$(Float64(loss))")
+                println(io, "$(r.penalty),$(r.sigmoid),$(r.scaling),$(Int(it)),$(Float64(loss))")
             end
         end
     end
@@ -79,6 +79,7 @@ function save_summary_csv(results)
         (
             penalty = r.penalty,
             sigmoid = r.sigmoid,
+            scaling = r.scaling,
             final_loss = Float64(r.final_loss),
             rho = Float64(r.rho),
             roa_area = Float64(r.area),
@@ -90,12 +91,12 @@ function save_summary_csv(results)
     ]
     out = joinpath(RESULTS_DIR, "summary.csv")
     open(out, "w") do io
-        println(io, "penalty,sigmoid,final_loss,rho,roa_area,max_dVdt_inside,training_time,has_nan,error_message")
+        println(io, "penalty,sigmoid,scaling,final_loss,rho,roa_area,max_dVdt_inside,training_time,has_nan,error_message")
         for row in rows
             escaped = replace(row.error_message, "\"" => "'")
             println(
                 io,
-                "$(row.penalty),$(row.sigmoid),$(row.final_loss),$(row.rho),$(row.roa_area),$(row.max_dVdt_inside),$(row.training_time),$(row.has_nan),\"$(escaped)\""
+                "$(row.penalty),$(row.sigmoid),$(row.scaling),$(row.final_loss),$(row.rho),$(row.roa_area),$(row.max_dVdt_inside),$(row.training_time),$(row.has_nan),\"$(escaped)\""
             )
         end
     end
@@ -137,7 +138,7 @@ function plot_roa_overlay(r, true_roa_mask)
         clims = (0, 1),
         xlabel = "x1",
         ylabel = "x2",
-        title = "$(r.penalty) | $(r.sigmoid) | area=$(round(r.area, digits=3)) | time=$(round(r.training_time, digits=2))s",
+        title = "$(r.penalty) | $(r.sigmoid) | $(r.scaling) | area=$(round(r.area, digits=3)) | time=$(round(r.training_time, digits=2))s",
         colorbar = false
     )
     contour!(p, r.xs, r.ys, Float64.(learned)';
@@ -145,7 +146,7 @@ function plot_roa_overlay(r, true_roa_mask)
     contour!(p, r.xs, r.ys, Float64.(true_roa_mask)';
         levels = [0.5], color = :blue, lw = lw - 1, ls = :dash, label = "True RoA")
 
-    fname = "roa_overlay_$(r.penalty)_$(r.sigmoid).png"
+    fname = "roa_overlay_$(r.penalty)_$(r.sigmoid)_$(r.scaling).png"
     savefig(p, joinpath(RESULTS_DIR, fname))
     return p
 end
@@ -162,14 +163,14 @@ function maybe_make_plots(results)
     p_loss = plot(; yscale = :log10, xlabel = "Iteration", ylabel = "Loss", title = "Training loss (log-scale)")
     for r in valid
         clamped = max.(r.losses, eps(Float64))
-        plot!(p_loss, r.iterations, clamped; label = "$(r.penalty) / $(r.sigmoid)", lw = 1.5)
+        plot!(p_loss, r.iterations, clamped; label = "$(r.penalty) / $(r.sigmoid) / $(r.scaling)", lw = 1.5)
     end
     savefig(p_loss, joinpath(RESULTS_DIR, "loss_logscale.png"))
 
     first_per_penalty = Dict{String, NamedTuple}()
     for r in filter(r -> !isempty(r.Vvals) && isfinite(r.rho), results)
         key = r.penalty
-        if !haskey(first_per_penalty, key) || (r.sigmoid == "logistic")
+        if !haskey(first_per_penalty, key) || (r.scaling == "linear" && r.sigmoid == "logistic")
             first_per_penalty[key] = r
         end
     end
@@ -186,7 +187,7 @@ function maybe_make_plots(results)
             levels = [r.rho],
             xlabel = "x1",
             ylabel = "x2",
-            title = "$(r.penalty) ($(r.sigmoid))",
+            title = "$(r.penalty) ($(r.sigmoid), $(r.scaling))",
             legend = false
         )
         push!(plt_list, p)
@@ -200,7 +201,7 @@ function maybe_make_plots(results)
         end
     end
 
-    labels = ["$(r.penalty)\n$(r.sigmoid)" for r in results]
+    labels = ["$(r.penalty)\n$(r.sigmoid)\n$(r.scaling)" for r in results]
     areas = [r.area for r in results]
     p_area = bar(labels, areas; xlabel = "Penalty / Sigmoid", ylabel = "Estimated RoA area", legend = false, xrotation = 45)
     savefig(p_area, joinpath(RESULTS_DIR, "area_comparison.png"))
@@ -273,10 +274,11 @@ function write_structured_report(results, summary_rows, src)
     best_default = pick_max_area(default_rows)
     best_logistic = pick_max_area(logistic_rows)
 
-    inv_default = only(filter(r -> r.penalty == "inv_dist_sq" && r.sigmoid == "default", results))
-    scaled_default = only(filter(r -> r.penalty == "scaled_inv_dist_sq" && r.sigmoid == "default", results))
-    inv_logistic = only(filter(r -> r.penalty == "inv_dist_sq" && r.sigmoid == "logistic", results))
-    scaled_logistic = only(filter(r -> r.penalty == "scaled_inv_dist_sq" && r.sigmoid == "logistic", results))
+    linear_only(r) = r.scaling == "linear"
+    inv_default = only(filter(r -> r.penalty == "inv_dist_sq" && r.sigmoid == "default" && linear_only(r), results))
+    scaled_default = only(filter(r -> r.penalty == "scaled_inv_dist_sq" && r.sigmoid == "default" && linear_only(r), results))
+    inv_logistic = only(filter(r -> r.penalty == "inv_dist_sq" && r.sigmoid == "logistic" && linear_only(r), results))
+    scaled_logistic = only(filter(r -> r.penalty == "scaled_inv_dist_sq" && r.sigmoid == "logistic" && linear_only(r), results))
 
     adaptive_note = "No adaptive reweighting configured in this framework (QuadratureTraining without adaptive loss callbacks)."
     scale_effect_default = abs(scaled_default.area - inv_default.area)
@@ -290,6 +292,8 @@ function write_structured_report(results, summary_rows, src)
         println(io, "- Default sigmoid in source: `(x) -> x .≥ zero.(x)` (hard step)")
         println(io, "- Logistic sigmoid used in experiments: `σ(z)=1/(1+exp(-k*z))`, with `k=20`")
         println(io, "- Penalty term wiring in source: `[sigmoid(ρ-V)*in_RoA_penalty, sigmoid(V-ρ)*out_of_RoA_penalty]`")
+        println(io, "- Violation scaling: `:linear` → ``u = V - ρ``; `:log` → ``u = log(max(V, ρ(1+ε))/ρ)`` with ``ε = $(VIOLATION_RATIO_EPS)`` (see `src/scaling.jl`).")
+        println(io, "- Log-mode gate: out-of-RoA penalty scaled so effective gate uses ``σ(u)`` instead of ``σ(V-ρ)``.")
         println(io, "- Loss aggregation: NeuralPDE residual loss over PDE equations (each residual vs `0.0`).")
         println(io, "- Gradient through default sigmoid: non-smooth/boolean gate; logistic variant provides smooth gate.")
         println(io)
@@ -313,14 +317,26 @@ function write_structured_report(results, summary_rows, src)
         println(io)
         for row in summary_rows
             e = isempty(row.error_message) ? "none" : row.error_message
-            println(io, "- penalty: `$(row.penalty)` | sigmoid: `$(row.sigmoid)` | final_loss: `$(row.final_loss)` | ρ: `$(row.rho)` | area: `$(row.roa_area)` | max_dVdt_inside: `$(row.max_dVdt_inside)` | training_time: `$(row.training_time)` | has_nan: `$(row.has_nan)` | error: `$(e)`")
+            println(io, "- penalty: `$(row.penalty)` | sigmoid: `$(row.sigmoid)` | scaling: `$(row.scaling)` | final_loss: `$(row.final_loss)` | ρ: `$(row.rho)` | area: `$(row.roa_area)` | max_dVdt_inside: `$(row.max_dVdt_inside)` | training_time: `$(row.training_time)` | has_nan: `$(row.has_nan)` | error: `$(e)`")
+        end
+        println(io)
+
+        println(io, "## Results by (penalty, cutoff, scaling)")
+        println(io)
+        println(io, "| Penalty | Cutoff | Scaling | Area | Max dV/dt inside | Time (s) |")
+        println(io, "|---------|--------|---------|------|------------------|----------|")
+        for row in sort(summary_rows, by = r -> (r.penalty, r.sigmoid, r.scaling))
+            area_s = isfinite(row.roa_area) ? string(round(row.roa_area, digits=4)) : "NaN"
+            dv_s = isfinite(row.max_dVdt_inside) ? string(round(row.max_dVdt_inside, digits=4)) : "NaN"
+            t_s = isfinite(row.training_time) ? string(round(row.training_time, digits=2)) : "NaN"
+            println(io, "| $(row.penalty) | $(row.sigmoid) | $(row.scaling) | $(area_s) | $(dv_s) | $(t_s) |")
         end
         println(io)
 
         println(io, "## Expected vs Observed Behavior")
         println(io)
 
-        r_cz = only(filter(r -> r.penalty == "control_zero" && r.sigmoid == "default", results))
+        r_cz = only(filter(r -> r.penalty == "control_zero" && r.sigmoid == "default" && linear_only(r), results))
         println(io, "### control_zero (default sigmoid)")
         println(io)
         println(io, "- **Expected:** smallest RoA estimate since there is no penalty outside the RoA")
@@ -332,7 +348,7 @@ function write_structured_report(results, summary_rows, src)
         end
         println(io)
 
-        r_co = only(filter(r -> r.penalty == "constant_one" && r.sigmoid == "logistic", results))
+        r_co = only(filter(r -> r.penalty == "constant_one" && r.sigmoid == "logistic" && linear_only(r), results))
         println(io, "### constant_one (logistic sigmoid)")
         println(io)
         println(io, "- **Expected:** moderate RoA expansion due to uniform penalty with smooth sigmoid gating")
@@ -345,7 +361,7 @@ function write_structured_report(results, summary_rows, src)
         end
         println(io)
 
-        r_ivs = only(filter(r -> r.penalty == "inv_V_small" && r.sigmoid == "default", results))
+        r_ivs = only(filter(r -> r.penalty == "inv_V_small" && r.sigmoid == "default" && linear_only(r), results))
         println(io, "### inv_V_small (default sigmoid)")
         println(io)
         println(io, "- **Expected:** stabilized inverse-V penalty with small epsilon (1e-3) avoiding V→0 singularity")
@@ -357,7 +373,7 @@ function write_structured_report(results, summary_rows, src)
         end
         println(io)
 
-        r_ivr = only(filter(r -> r.penalty == "inv_V_rho" && r.sigmoid == "default", results))
+        r_ivr = only(filter(r -> r.penalty == "inv_V_rho" && r.sigmoid == "default" && linear_only(r), results))
         println(io, "### inv_V_rho (default sigmoid)")
         println(io)
         println(io, "- **Expected:** stabilized inverse-V penalty using ρ as offset, singularity-free")
@@ -390,7 +406,7 @@ function write_structured_report(results, summary_rows, src)
         if isempty(violators)
             println(io, "- No run had positive max dV/dt inside V <= ρ on the evaluation grid.")
         else
-            names = join(["$(r.penalty)/$(r.sigmoid)" for r in violators], ", ")
+            names = join(["$(r.penalty)/$(r.sigmoid)/$(r.scaling)" for r in violators], ", ")
             println(io, "- Runs with decrease-condition violation (max dV/dt inside V <= ρ > 0): $(names)")
         end
         println(io, "- Next architecture modification if all plateau: increase `MLP` width/depth and test `MultiplicativeLyapunovNet` with same protocol.")
@@ -403,14 +419,14 @@ function write_structured_report(results, summary_rows, src)
             slowest = times_valid[argmax([r.training_time for r in times_valid])]
             fastest = times_valid[argmin([r.training_time for r in times_valid])]
             mean_time = sum(r.training_time for r in times_valid) / length(times_valid)
-            println(io, "| Penalty | Sigmoid | Training Time (s) |")
-            println(io, "|---------|---------|-------------------|")
+            println(io, "| Penalty | Sigmoid | Scaling | Training Time (s) |")
+            println(io, "|---------|---------|---------|-------------------|")
             for r in times_valid
-                println(io, "| $(r.penalty) | $(r.sigmoid) | $(round(r.training_time, digits=2)) |")
+                println(io, "| $(r.penalty) | $(r.sigmoid) | $(r.scaling) | $(round(r.training_time, digits=2)) |")
             end
             println(io)
-            println(io, "- **Fastest:** `$(fastest.penalty)` / `$(fastest.sigmoid)` at $(round(fastest.training_time, digits=2))s")
-            println(io, "- **Slowest:** `$(slowest.penalty)` / `$(slowest.sigmoid)` at $(round(slowest.training_time, digits=2))s")
+            println(io, "- **Fastest:** `$(fastest.penalty)` / `$(fastest.sigmoid)` / `$(fastest.scaling)` at $(round(fastest.training_time, digits=2))s")
+            println(io, "- **Slowest:** `$(slowest.penalty)` / `$(slowest.sigmoid)` / `$(slowest.scaling)` at $(round(slowest.training_time, digits=2))s")
             println(io, "- **Mean:** $(round(mean_time, digits=2))s across $(length(times_valid)) runs")
         else
             println(io, "No valid training time data available.")

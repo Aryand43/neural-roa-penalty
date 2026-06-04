@@ -26,29 +26,43 @@ function main()
     write_source_report(src)
 
     println("Building controlled setup...")
-    penalties = make_penalty_list()
     sigmoid_list = [
         ("default", hard_step_sigmoid),
         ("logistic", logistic_sigmoid(20.0)),
     ]
+    scaling_list = make_scaling_modes()
 
     results = NamedTuple[]
     adam_iters = 20
     bfgs_iters = 20
-    for (pname, pfn) in penalties
-        for (sname, sfn) in sigmoid_list
+    for (scaling_name, scaling_mode) in scaling_list
+        penalties = make_penalty_list(scaling_mode)
+        for (pname, pfn) in penalties
+            for (sname, sfn) in sigmoid_list
 
-            Random.seed!(2026)
-            setup = build_setup(; seed = 2026, hidden = 32)
+                Random.seed!(2026)
+                setup = build_setup(; seed = 2026, hidden = 32)
 
-            println("Training penalty=$(pname), sigmoid=$(sname)")
-            res = try
-                run_one_experiment(setup, pname, pfn, sname, sfn; adam_iters = adam_iters, bfgs_iters = bfgs_iters, ρ = 1.0)
-            catch err
-                @warn "Experiment failed" penalty = pname sigmoid = sname error = sprint(showerror, err)
-                failed_result(pname, sname, err)
+                println("Training penalty=$(pname), sigmoid=$(sname), scaling=$(scaling_name)")
+                res = try
+                    run_one_experiment(
+                        setup,
+                        pname,
+                        pfn,
+                        sname,
+                        sfn;
+                        scaling = scaling_mode,
+                        adam_iters = adam_iters,
+                        bfgs_iters = bfgs_iters,
+                        ρ = 1.0,
+                    )
+                catch err
+                    @warn "Experiment failed" penalty = pname sigmoid = sname scaling = scaling_name error =
+                        sprint(showerror, err)
+                    failed_result(pname, sname, scaling_mode, err)
+                end
+                push!(results, res)
             end
-            push!(results, res)
         end
     end
 
