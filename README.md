@@ -11,6 +11,41 @@ julia --project=. run_roa_penalty_experiments.jl
 
 All outputs are written to the `results/` directory (CSVs, reports, and plots).
 
+## Rerun on updated NeuralLyapunov (Sept 2026)
+
+Rerun of the `V − ρ` vs `log(V/ρ)` (`log_scale`) comparison after the `benchmark` timing change ([SciML/NeuralLyapunov.jl#215](https://github.com/SciML/NeuralLyapunov.jl/pull/215)) was merged into the `roa-log-transtion` branch ([#173](https://github.com/SciML/NeuralLyapunov.jl/pull/173)).
+
+**Environment**
+
+| | Previous run (2026-05-28) | Rerun |
+|---|---|---|
+| NeuralLyapunov | 0.4.2 (`roa-log-transtion`) | 0.4.9 (`roa-log-transtion` @ `7d46dac`) |
+| NeuralPDE | 5.x | 6.4.1 |
+| Optimization / OptimizationOptimisers | 5.x / 0.3.x | 5.9.1 / 0.3.24 |
+| Julia | 1.12.5 | 1.12.6 |
+
+Protocol unchanged: Van der Pol, 3×32 tanh MLP + `AdditiveLyapunovNet`, `QuasiRandomTraining(1024)`, `Adam(0.01)` ×300 then `Adam()` ×300, ρ = 1, seed 2026, 9 penalties × 2 sigmoids × `log_scale ∈ {false, true}` = 36 runs.
+
+**Timing changes in this repo**
+
+- This experiment calls `Optimization.solve` directly, not `benchmark`, and already excluded discretization, so #215 does not change what is timed here. Training time is now measured with `@timed` around the two solves only, matching `benchmark` after #215.
+- An untimed warm-up now precedes the grid. The old 60.67 s for the first configuration was JIT compilation, not training.
+- New summary columns: `compile_time_seconds` (compilation still inside the timer, ~1.6–2.9 s per new penalty closure) and `nan_grad_skips` (Adam updates skipped by OptimizationOptimisers because the gradient contained NaN/Inf).
+
+**Results** (full tables: [`results/rerun_comparison.md`](results/rerun_comparison.md), [`results/summary.csv`](results/summary.csv); previous run: [`results/summary_nl_v0.4.2_2026-05-28.csv`](results/summary_nl_v0.4.2_2026-05-28.csv))
+
+- **RoA area:** 30 of 36 runs are identical to the previous run. Changes: `inv_V_small`/logistic/`log_scale=true` 0.8312 → 0.7396; `inv_V_small`/default 0.3384 → 0.3864 (both `log_scale`); `control_zero`/default 2.0932 → 2.1280 (both); `inv_V_rho`/logistic/true 0.0068 → 0.0092; `inv_V_clipped` ≤ 0.002.
+- **`log_scale` effect on area is unchanged in sign and nearly unchanged in size.** With the hard-step sigmoid it has no effect (expected: `log(V/ρ)` and `V − ρ` have the same sign). With the logistic sigmoid: `inv_V_clipped` +0.48, `inv_V_small` +0.23 (was +0.32), `inv_V_rho` −0.58, `control_zero` −0.13, all distance/constant/quadratic penalties 0.
+- **Timing:** mean 11.69 s (was 15.9 s); `log_scale=false` 11.73 s vs `log_scale=true` 11.66 s. The earlier apparent `log_scale` speed-up (17.49 s vs 14.32 s) came entirely from the compile-time outlier; there is no meaningful timing difference between the two scalings.
+- **NaN gradients:** `inv_V_small`, `inv_V_rho`, `inv_V_clipped` with the logistic sigmoid and `log_scale=false` skipped 569, 591 and 570 of 600 Adam updates, so those networks barely trained and their areas mostly reflect initialization. The same three with `log_scale=true` skipped 0. Every other run skipped 0. The `log_scale` area differences for these three penalties are therefore largely "trained vs. effectively untrained", not a pure effect of the boundary shape.
+
+Reproduce the comparison:
+
+```bash
+julia --project=. run_roa_penalty_experiments.jl
+julia --project=. scripts/compare_reruns.jl results/summary_nl_v0.4.2_2026-05-28.csv results/summary.csv results/rerun_comparison.md
+```
+
 ## Pre-Experiment Hypotheses
 
 Each penalty function `p(V, dV/dt, x, x₀, ρ)` is gated by `σ(V − ρ)` and applied **outside** the learned RoA level set `{x : V(x) ≤ ρ}`. Two sigmoids are tested: the default hard step `x ≥ 0` (non-differentiable boolean gate, zero gradient almost everywhere) and a logistic approximation `1/(1+exp(−20z))` (smooth, provides gradient signal near the boundary).

@@ -15,6 +15,7 @@ using Lux
 include("../src/dynamics.jl")
 include("../src/setup.jl")
 include("../src/penalties.jl")
+include("../src/grad_skip_counter.jl")
 include("../src/experiment.jl")
 include("../src/metrics.jl")
 include("../src/reporting.jl")
@@ -43,6 +44,17 @@ function main()
     results = NamedTuple[]
     adam_iters1 = 300
     adam_iters2 = 300
+
+    # Untimed warm-up so JIT compilation is not charged to the first configuration's
+    # training time. Covers both sigmoids and both log_scale settings.
+    println("Warm-up (untimed, results discarded)...")
+    for (_, sfn) in sigmoid_list, log_scale in (false, true)
+        Random.seed!(seed)
+        warm = build_setup(; seed = seed, hidden = 32)
+        run_one_experiment(warm, "warmup", first(penalties)[2], "warmup", sfn;
+            adam_iters1 = 2, adam_iters2 = 2, ρ = ρ_exp, log_scale = log_scale)
+    end
+
     for (pname, pfn, inv_V_a, inv_V_a_regime) in penalties
         for (sname, sfn) in sigmoid_list
             for log_scale in (false, true)

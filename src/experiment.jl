@@ -35,16 +35,20 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     )
     prob = discretize(pde_system, discretization)
 
-    # Wall-clock time for Adam + BFGS (reported as `train_time_seconds` in summary CSV).
-    start_time = time()
+    # Time only the optimization passes, matching `NeuralLyapunov.benchmark` since
+    # SciML/NeuralLyapunov.jl#215 (PDE discretization excluded from training time).
+    # Adam skips (does not apply) updates whose gradients contain NaN/Inf; count them.
+    grad_skips = GradSkipCounter()
+    training = with_logger(grad_skips) do
+        @timed begin
+            adam_res = Optimization.solve(prob, Adam(0.01); maxiters = adam_iters1)
+            prob2 = Optimization.remake(prob, u0 = adam_res.u)
+            Optimization.solve(prob2, Adam(); maxiters = adam_iters2)
+        end
+    end
+    elapsed = training.time
 
-    adam_res = Optimization.solve(prob, Adam(0.01); maxiters = adam_iters1)
-    prob2 = Optimization.remake(prob, u0 = adam_res.u)
-    bfgs_res = Optimization.solve(prob2, Adam(); maxiters = adam_iters2)
-
-    elapsed = time() - start_time
-
-    u = bfgs_res.u
+    u = training.value.u
     θ = hasproperty(u, :depvar) ? u.depvar : u
 
     V, V̇ = get_numerical_lyapunov_function(
@@ -73,6 +77,8 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
         area = grid.area,
         max_dVdt_inside = grid.max_dVdt_inside,
         training_time = elapsed,
+        compile_time = training.compile_time,
+        nan_grad_skips = grad_skips.count,
         has_nan = has_nan,
         losses = losses,
         iterations = iters,
@@ -101,6 +107,8 @@ function failed_result(penalty_name, sigmoid_name, err; log_scale::Bool = false,
         area = NaN,
         max_dVdt_inside = NaN,
         training_time = NaN,
+        compile_time = NaN,
+        nan_grad_skips = -1,
         has_nan = true,
         losses = Float64[],
         iterations = Int[],

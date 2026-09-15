@@ -1,53 +1,53 @@
 # Source Inspection
 
 ## Runtime
-- pathof(NeuralLyapunov): `/home/nklugman/.julia/packages/NeuralLyapunov/ykuJS/src/NeuralLyapunov.jl`
+- pathof(NeuralLyapunov): `/Users/aryand/.julia/packages/NeuralLyapunov/GMYBc/src/NeuralLyapunov.jl`
 
 ### methods(make_RoA_aware)
 ```julia
 # 1 method for generic function "make_RoA_aware" from NeuralLyapunov:
  [1] make_RoA_aware(cond::NeuralLyapunov.AbstractLyapunovDecreaseCondition; ρ, out_of_RoA_penalty, sigmoid, log_scale)
-     @ ~/.julia/packages/NeuralLyapunov/ykuJS/src/decrease_conditions_RoA_aware.jl:202
+     @ ~/.julia/packages/NeuralLyapunov/GMYBc/src/decrease_conditions_RoA_aware.jl:202
 ```
 
 ### methods(AdditiveLyapunovNet)
 ```julia
 # 1 method for generic function "AdditiveLyapunovNet" from NeuralLyapunov:
  [1] AdditiveLyapunovNet(ϕ; ψ, m, r, dim_ϕ, kwargs...)
-     @ ~/.julia/packages/NeuralLyapunov/ykuJS/src/lux_structures.jl:43
+     @ ~/.julia/packages/NeuralLyapunov/GMYBc/src/lux_structures.jl:43
 ```
 
 ### methods(AsymptoticStability)
 ```julia
 # 1 method for generic function "AsymptoticStability" from NeuralLyapunov:
  [1] AsymptoticStability(; C, strength, rectifier)
-     @ ~/.julia/packages/NeuralLyapunov/ykuJS/src/decrease_conditions.jl:192
+     @ ~/.julia/packages/NeuralLyapunov/GMYBc/src/decrease_conditions.jl:192
 ```
 
 ### methods(DontCheckNonnegativity)
 ```julia
 # 1 method for generic function "DontCheckNonnegativity" from NeuralLyapunov:
  [1] DontCheckNonnegativity(; check_fixed_point)
-     @ ~/.julia/packages/NeuralLyapunov/ykuJS/src/minimization_conditions.jl:219
+     @ ~/.julia/packages/NeuralLyapunov/GMYBc/src/minimization_conditions.jl:219
 ```
 
 ### methods(NoAdditionalStructure)
 ```julia
 # 1 method for generic function "NoAdditionalStructure" from NeuralLyapunov:
  [1] NoAdditionalStructure()
-     @ ~/.julia/packages/NeuralLyapunov/ykuJS/src/structure_specification.jl:23
+     @ ~/.julia/packages/NeuralLyapunov/GMYBc/src/structure_specification.jl:128
 ```
 
 ### lowered(make_RoA_aware)
 ```julia
 CodeInfo(
-1 ─ %1 = NeuralLyapunov.:(var"#make_RoA_aware#104")
+1 ─ %1 = NeuralLyapunov.:(var"#make_RoA_aware#94")
 │   %2 = NeuralLyapunov.:(var"#make_RoA_aware##0#make_RoA_aware##1")
-│        #105 = %new(%2)
-│   %4 = #105
+│        #95 = %new(%2)
+│   %4 = #95
 │   %5 = NeuralLyapunov.:(var"#make_RoA_aware##2#make_RoA_aware##3")
-│        #106 = %new(%5)
-│   %7 = #106
+│        #96 = %new(%5)
+│   %7 = #96
 │   %8 =   dynamic (%1)(1.0, %4, %7, false, #self#, cond)
 └──      return %8
 )
@@ -70,39 +70,44 @@ function _NeuralLyapunovPDESystem(
     structure = spec.structure
     minimization_condition = spec.minimization_condition
     decrease_condition = spec.decrease_condition
-    f_call = structure.f_call
-    state_dim = length(domains)
 
     ################## Define Lyapunov function & derivative ##################
-    output_dim = structure.network_dim
+    output_dim = get_network_dim(structure)
+    control_dim = policy_search ? get_control_dim(structure) : 0
     net_syms = [Symbol(:φ, i) for i in 1:output_dim]
     net = [first(@variables $s(..)) for s in net_syms]
 
     # φ(x) is the symbolic form of neural network output
-    φ(x) = Num.([φi(x...) for φi in net])
+    φ(x) = Num.([φi(x...) for φi in net[1:(output_dim - control_dim)]])
+
+    # u(x) is the symbolic form of the control input, when applicable
+    if policy_search
+        φu(x) = Num.([φi(x...) for φi in net[(output_dim - control_dim + 1):end]])
+        _u = get_control_structure(structure)
+        u(x) = _u(φu, x, fixed_point)
+    end
 
     # V(x) is the symbolic form of the Lyapunov function
-    V(x) = structure.V(φ, x, fixed_point)
+    _V = get_V(structure)
+    V(x) = _V(φ, x, fixed_point)
 
     # V̇(x) is the symbolic time derivative of the Lyapunov function
-    function V̇(x)
-        return structure.V̇(
-            φ,
-            y -> Symbolics.jacobian(φ(y), y),
-            dynamics,
-            x,
-            params,
-            0.0,
-            fixed_point
-        )
+    if policy_search
+        f = x -> dynamics(x, u(x), params, 0)
+    else
+        f = x -> dynamics(x, params, 0)
     end
+    _V̇ = get_V̇(structure)
+    Jφ(x) = Symbolics.jacobian(φ(x), x)
+    V̇(x) = _V̇(φ, Jφ, x, f(x), fixed_point)
+
 
     ################ Define equations and boundary conditions #################
     eqs = Equation[]
 
     if check_nonnegativity(minimization_condition)
         cond = get_minimization_condition(minimization_condition)::Function
-        cond_eq = cond(V, state, fixed_point) .~ 0.0
+        cond_eq = cond(V, state, fixed_point) .~ 0
         if cond_eq isa Equation
             push!(eqs, cond_eq)
         elseif cond_eq isa AbstractVector{Equation}
@@ -117,7 +122,7 @@ function _NeuralLyapunovPDESystem(
 
     if check_decrease(decrease_condition)
         cond = get_decrease_condition(decrease_condition)::Function
-        cond_eq = cond(V, V̇, state, fixed_point) .~ 0.0
+        cond_eq = cond(V, V̇, state, fixed_point) .~ 0
         if cond_eq isa Equation
             push!(eqs, cond_eq)
         elseif cond_eq isa AbstractVector{Equation}
@@ -133,24 +138,24 @@ function _NeuralLyapunovPDESystem(
     bcs = Equation[]
 
     if check_minimal_fixed_point(minimization_condition)
-        _V = V(fixed_point)
-        _V = _V isa AbstractVector ? _V[] : _V
-        push!(bcs, _V ~ 0.0)
+        V0 = V(fixed_point)
+        V0 = V0 isa AbstractVector ? V0[] : V0
+        push!(bcs, V0 ~ 0)
     end
 
     if policy_search
-        append!(bcs, f_call(dynamics, φ, fixed_point, params, 0.0) .~ zeros(state_dim))
+        append!(bcs, f(fixed_point) .~ 0)
     end
 
     if isempty(eqs) && isempty(bcs)
         error("No training conditions specified.")
     end
 
-    # NeuralPDE requires an equation and a boundary condition, even if they are
-    # trivial like φ(0.0) == φ(0.0), so we remove those trivial equations if they showed up
-    # naturally alongside other equations and add them in if we have no other equations
-    eqs = filter(eq -> eq != (0.0 ~ 0.0), eqs)
-    bcs = filter(eq -> eq != (0.0 ~ 0.0), bcs)
+    # NeuralPDE requires an equation and a boundary condition, even if they are trivial
+    # like φ(0) ~ φ(0), so we remove any trivial equations if they showed up naturally
+    # alongside other equations and add some in if we have no other equations
+    eqs = filter(eq -> eq != (0 ~ 0), eqs)
+    bcs = filter(eq -> eq != (0 ~ 0), bcs)
 
     if isempty(eqs)
         push!(eqs, φ(fixed_point)[1] ~ φ(fixed_point)[1])
@@ -160,12 +165,13 @@ function _NeuralLyapunovPDESystem(
     end
 
     ########################### Construct PDESystem ###########################
+    dvs = policy_search ? vcat(φ(state), φu(state)) : φ(state)
     return PDESystem(
         eqs,
         bcs,
         domains,
         state,
-        φ(state),
+        dvs,
         params;
         initial_conditions,
         name
@@ -213,8 +219,7 @@ end
 function NoAdditionalStructure()::NeuralLyapunovStructure
     return NeuralLyapunovStructure(
         (net, x, x0) -> net(x),
-        (net, grad_net, f, x, p, t, x0) -> grad_net(x) ⋅ f(x, p, t),
-        (f, net, x, p, t) -> f(x, p, t),
+        (net, grad_net, x, ẋ, x0) -> grad_net(x) ⋅ ẋ,
         1
     )
 end

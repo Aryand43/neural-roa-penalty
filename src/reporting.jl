@@ -91,6 +91,8 @@ function save_summary_csv(results)
             roa_area = Float64(r.area),
             max_dVdt_inside = Float64(r.max_dVdt_inside),
             train_time_seconds = Float64(r.training_time),
+            compile_time_seconds = Float64(r.compile_time),
+            nan_grad_skips = r.nan_grad_skips,
             has_nan = Bool(r.has_nan),
             error_message = r.error_message,
         ) for r in results
@@ -99,7 +101,7 @@ function save_summary_csv(results)
     open(out, "w") do io
         println(
             io,
-            "penalty,sigmoid,log_scale,rng_seed,inv_V_a,inv_V_a_regime,final_loss,rho,roa_area,max_dVdt_inside,train_time_seconds,has_nan,error_message",
+            "penalty,sigmoid,log_scale,rng_seed,inv_V_a,inv_V_a_regime,final_loss,rho,roa_area,max_dVdt_inside,train_time_seconds,compile_time_seconds,nan_grad_skips,has_nan,error_message",
         )
         for row in rows
             escaped = replace(row.error_message, "\"" => "'")
@@ -126,6 +128,10 @@ function save_summary_csv(results)
                 row.max_dVdt_inside,
                 ",",
                 row.train_time_seconds,
+                ",",
+                row.compile_time_seconds,
+                ",",
+                row.nan_grad_skips,
                 ",",
                 row.has_nan,
                 ",",
@@ -331,6 +337,8 @@ function write_structured_report(results, summary_rows, src; seed = nothing)
             println(io, "- Seed: `$(seed)`")
         end
         println(io, "- NeuralLyapunov path: `$(nl_path)`")
+        println(io, "- NeuralLyapunov version: `$(pkgversion(NeuralLyapunov))`; Julia `$(VERSION)`; threads: $(Threads.nthreads())")
+        println(io, "- Training time: `@timed` around the two Adam solves only (PDE discretization excluded, as in `benchmark` since SciML/NeuralLyapunov.jl#215); an untimed warm-up run precedes the grid so JIT compilation is not charged to the first configuration.")
         println(io, "- Default sigmoid in source: `(x) -> x .≥ zero.(x)` (hard step)")
         println(io, "- Logistic sigmoid used in experiments: `σ(z)=1/(1+exp(-k*z))`, with `k=20`")
         println(io, "- Penalty term wiring in source: `[sigmoid(ρ-V)*in_RoA_penalty, sigmoid(V-ρ)*out_of_RoA_penalty]`")
