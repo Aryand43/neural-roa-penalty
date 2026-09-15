@@ -52,7 +52,7 @@ function main()
         Random.seed!(seed)
         warm = build_setup(; seed = seed, hidden = 32)
         run_one_experiment(warm, "warmup", first(penalties)[2], "warmup", sfn;
-            adam_iters1 = 2, adam_iters2 = 2, ρ = ρ_exp, log_scale = log_scale)
+            adam_iters1 = 2, adam_iters2 = 2, ρ = ρ_exp, log_scale = log_scale, n_eval = 20)
     end
 
     for (pname, pfn, inv_V_a, inv_V_a_regime) in penalties

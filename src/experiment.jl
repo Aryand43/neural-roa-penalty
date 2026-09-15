@@ -2,7 +2,10 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
         adam_iters1 = 300, adam_iters2 = 300, ρ = 1.0, log_scale::Bool = false,
         rng_seed::Int = -1,
         inv_V_a::Float64 = NaN,
-        inv_V_a_regime::AbstractString = "")
+        inv_V_a_regime::AbstractString = "",
+        n_eval::Int = 1000,
+        simulation_time = 20.0,
+        endpoint_atol = 1.0e-3)
     structure = NoAdditionalStructure()
     minimization_condition = DontCheckNonnegativity()
     decrease_condition = make_RoA_aware(
@@ -14,54 +17,49 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
     )
     spec = NeuralLyapunovSpecification(structure, minimization_condition, decrease_condition)
 
-    logger = NeuralLyapunov.NeuralLyapunovBenchmarkLogger{Float64}()
-    log_options = LogOptions(; log_frequency = 1)
+    # Learned RoA estimate is the sublevel set {V ≤ ρ} (same set as the grid area metric).
+    classifier = (V, V̇, x) -> V <= ρ
 
-    @named pde_system = NeuralLyapunovPDESystem(
-        setup.f,
-        setup.lb,
-        setup.ub,
-        spec;
-        fixed_point = setup.fixed_point
+    # Stop evaluation trajectories once they escape ‖x‖ > 5 (same bound as
+    # `approximate_true_roa`); they cannot reach the fixed point, and letting them blow up
+    # floods the log with solver instability warnings.
+    escape = NeuralLyapunov.SciMLBase.DiscreteCallback(
+        (u, t, integrator) -> sum(abs2, u) > 25.0,
+        NeuralLyapunov.SciMLBase.terminate!
     )
 
-    discretization = PhysicsInformedNN(
-        setup.chain,
-        QuasiRandomTraining(1024);
-        init_params = setup.init_params,
-        init_states = setup.init_states,
-        logger,
-        log_options
-    )
-    prob = discretize(pde_system, discretization)
-
-    # Time only the optimization passes, matching `NeuralLyapunov.benchmark` since
-    # SciML/NeuralLyapunov.jl#215 (PDE discretization excluded from training time).
+    # Train and evaluate with `NeuralLyapunov.benchmark`, so `training_time` is measured by
+    # NeuralLyapunov itself (PDE discretization excluded since SciML/NeuralLyapunov.jl#215).
     # Adam skips (does not apply) updates whose gradients contain NaN/Inf; count them.
     grad_skips = GradSkipCounter()
-    training = with_logger(grad_skips) do
-        @timed begin
-            adam_res = Optimization.solve(prob, Adam(0.01); maxiters = adam_iters1)
-            prob2 = Optimization.remake(prob, u0 = adam_res.u)
-            Optimization.solve(prob2, Adam(); maxiters = adam_iters2)
-        end
+    res = with_logger(grad_skips) do
+        benchmark(
+            setup.f,
+            setup.lb,
+            setup.ub,
+            spec,
+            setup.chain,
+            QuasiRandomTraining(1024),
+            [Adam(0.01), Adam()];
+            n = n_eval,
+            classifier,
+            fixed_point = setup.fixed_point,
+            optimization_args = [[:maxiters => adam_iters1], [:maxiters => adam_iters2]],
+            simulation_time,
+            ode_solver_args = [:callback => escape],
+            atol = endpoint_atol,
+            init_params = setup.init_params,
+            init_states = setup.init_states,
+            rng = StableRNG(max(rng_seed, 0)),
+            ensemble_alg = NeuralLyapunov.SciMLBase.EnsembleSerial(),
+            log_frequency = 1
+        )
     end
-    elapsed = training.time
 
-    u = training.value.u
-    θ = hasproperty(u, :depvar) ? u.depvar : u
-
-    V, V̇ = get_numerical_lyapunov_function(
-        discretization.phi,
-        θ,
-        structure,
-        setup.f,
-        setup.fixed_point
-    )
-
-    grid = compute_grid_metrics(V, V̇, decrease_condition.ρ; lb = setup.lb, ub = setup.ub)
-    losses = copy(logger.losses)
-    iters = copy(logger.iterations)
+    grid = compute_grid_metrics(res.V, res.V̇, decrease_condition.ρ; lb = setup.lb, ub = setup.ub)
+    losses = Float64.(res.training_losses.Loss)
+    iters = Int.(res.training_losses.Iteration)
+    tp, fp, tn, fn = res.confusion_matrix.Count
 
     has_nan = any(!isfinite, losses) || any(!isfinite, grid.Vvals) || any(!isfinite, grid.dVvals)
 
@@ -76,8 +74,13 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
         rho = decrease_condition.ρ,
         area = grid.area,
         max_dVdt_inside = grid.max_dVdt_inside,
-        training_time = elapsed,
-        compile_time = training.compile_time,
+        training_time = res.training_time,
+        evaluation_time = res.evaluation_time,
+        tp = tp,
+        fp = fp,
+        tn = tn,
+        fn = fn,
+        accuracy = (tp + tn) / (tp + fp + tn + fn),
         nan_grad_skips = grad_skips.count,
         has_nan = has_nan,
         losses = losses,
@@ -107,7 +110,12 @@ function failed_result(penalty_name, sigmoid_name, err; log_scale::Bool = false,
         area = NaN,
         max_dVdt_inside = NaN,
         training_time = NaN,
-        compile_time = NaN,
+        evaluation_time = NaN,
+        tp = -1,
+        fp = -1,
+        tn = -1,
+        fn = -1,
+        accuracy = NaN,
         nan_grad_skips = -1,
         has_nan = true,
         losses = Float64[],

@@ -48,15 +48,17 @@ function main(old_path, new_path, out_path)
 
         println(io, "## Per-run")
         println(io)
-        println(io, "| penalty | sigmoid | log_scale | area old | area new | Δ area | max dV/dt old | max dV/dt new | time old (s) | time new (s) | NaN-grad skips new |")
-        println(io, "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+        println(io, "| penalty | sigmoid | log_scale | area old | area new | Δ area | max dV/dt old | max dV/dt new | time old (s) | time new (s) | NaN-grad skips new | accuracy new | eval time new (s) |")
+        println(io, "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
         for k in keys_sorted
             o, n = old[k], new[k]
             ao, an = num(o["roa_area"]), num(n["roa_area"])
             println(io, "| `$(k[1])` | `$(k[2])` | `$(k[3])` | $(fmt(ao)) | $(fmt(an)) | $(fmt_delta(ao, an)) | ",
                 "$(fmt(num(o["max_dVdt_inside"]))) | $(fmt(num(n["max_dVdt_inside"]))) | ",
                 "$(fmt(num(o["train_time_seconds"]), d = 2)) | $(fmt(num(n["train_time_seconds"]), d = 2)) | ",
-                "$(get(n, "nan_grad_skips", "—")) |")
+                "$(get(n, "nan_grad_skips", "—")) | ",
+                "$(haskey(n, "classifier_accuracy") ? fmt(num(n["classifier_accuracy"]), d = 3) : "—") | ",
+                "$(haskey(n, "eval_time_seconds") ? fmt(num(n["eval_time_seconds"]), d = 2) : "—") |")
         end
         println(io)
 
