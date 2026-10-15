@@ -1,5 +1,24 @@
 hard_step_sigmoid(x) = x .>= zero.(x)
-logistic_sigmoid(k::Real) = (x -> one(x) / (one(x) + exp(-k * x)))
+
+# Overflow-safe logistic gate.
+#
+# `1/(1+exp(-k*z))` is mathematically fine but numerically unsafe here: NeuralLyapunov's
+# RoA-aware decrease condition evaluates the gate at both `z` and `-z`
+# (`sigmoid(-scaled_V)` for the in-RoA term, `sigmoid(scaled_V)` for the penalty), so with
+# `scaled_V = V - ρ` the in-RoA gate sees `ρ - V`. Once `V > ρ + 709.78/k` (≈ 36.5 for
+# k = 20, ρ = 1) `exp(-k*z)` overflows to `Inf`; the value still rounds to 0, but the
+# derivative evaluates as `Inf/Inf` (equivalently `-0.0 * Inf`) and comes back `NaN`, which
+# OptimizationOptimisers then skips, so those runs barely train. `log_scale = true` hides
+# the problem rather than fixing it: it needs `V/ρ > exp(709.78/k) ≈ 1.6e15` to overflow.
+#
+# `(1 + tanh(k*z/2))/2` is the identical function with a bounded intermediate: `tanh`
+# saturates to ±1 instead of overflowing, so both value and derivative stay finite for all
+# real `z`, and it traces symbolically through NeuralPDE like `exp` does.
+logistic_sigmoid(k::Real) = (x -> (one(x) + tanh(k * x / 2)) / 2)
+
+# Previous (unsafe) form, kept for the overflow diagnostic in
+# `scripts/sigmoid_overflow_check.jl`; not used by the experiment grid.
+logistic_sigmoid_naive(k::Real) = (x -> one(x) / (one(x) + exp(-k * x)))
 
 # Inverse-V penalties use stabilized form `1/(V+a)` (never bare `1/V`).
 function inv_V_penalty(a::Real)

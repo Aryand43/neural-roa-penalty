@@ -40,7 +40,7 @@ Protocol unchanged: Van der Pol, 3×32 tanh MLP + `AdditiveLyapunovNet`, `QuasiR
 - **`log_scale` effect on area is unchanged in sign and nearly unchanged in size.** With the hard-step sigmoid it has no effect (expected: `log(V/ρ)` and `V − ρ` have the same sign). With the logistic sigmoid: `inv_V_clipped` +0.48, `inv_V_small` +0.23 (was +0.32), `inv_V_rho` −0.58, `control_zero` −0.13, all distance/constant/quadratic penalties 0.
 - **Timing (`benchmark` training_time):** mean 10.91 s (was 15.9 s); `log_scale=false` 10.98 s vs `log_scale=true` 10.84 s; max 12.64 s. The earlier apparent `log_scale` speed-up (17.49 s vs 14.32 s) came entirely from the compile-time outlier; there is no meaningful timing difference between the two scalings. Switching from direct `Optimization.solve` to `benchmark` left all training results (areas, max dV/dt, NaN-gradient skips) identical and changed only the timings (mean 11.69 s → 10.91 s). Evaluation takes ~0.03–0.07 s per run.
 - **`benchmark` classifier (`V ≤ ρ`, 1000 samples):** 0 false positives in every run (no sampled point outside the true RoA is predicted inside), but 785 of 1000 samples are actually in the RoA and the learned sets capture at most 187 of them. Accuracy is 0.40 for `constant_one`, `inv_dist`, `inv_dist_sq`, `scaled_inv_dist_sq` (logistic) and `quadratic_over_rho`; 0.39 for the distance penalties with the hard step; 0.33–0.34 for `control_zero` and `constant_one` (hard step); 0.22–0.28 for the `inv_V_*` penalties. `log_scale` changes accuracy only with the logistic sigmoid for `inv_V_clipped` (0.252 → 0.278), `inv_V_small` (0.245 → 0.256), `inv_V_rho` (0.249 → 0.216) and `control_zero` (0.344 → 0.334).
-- **NaN gradients:** `inv_V_small`, `inv_V_rho`, `inv_V_clipped` with the logistic sigmoid and `log_scale=false` skipped 569, 591 and 570 of 600 Adam updates, so those networks barely trained and their areas mostly reflect initialization. The same three with `log_scale=true` skipped 0. Every other run skipped 0. The `log_scale` area differences for these three penalties are therefore largely "trained vs. effectively untrained", not a pure effect of the boundary shape.
+- **NaN gradients:** `inv_V_small`, `inv_V_rho`, `inv_V_clipped` with the logistic sigmoid and `log_scale=false` skipped 569, 591 and 570 of 600 Adam updates, so those networks barely trained and their areas mostly reflect initialization. The same three with `log_scale=true` skipped 0. Every other run skipped 0. The `log_scale` area differences for these three penalties are therefore largely "trained vs. effectively untrained", not a pure effect of the boundary shape. This was root-caused to the logistic gate overflowing and fixed — see the next section.
 
 Reproduce the comparison:
 
@@ -49,9 +49,46 @@ julia --project=. run_roa_penalty_experiments.jl
 julia --project=. scripts/compare_reruns.jl results/summary_nl_v0.4.2_2026-05-28.csv results/summary.csv results/rerun_comparison.md
 ```
 
+## Overflow-safe sigmoid rerun (Oct 2026)
+
+The previous rerun found that `inv_V_small`, `inv_V_rho` and `inv_V_clipped` with the logistic sigmoid and `log_scale = false` skipped ~95% of their Adam updates on NaN gradients, while the same runs with `log_scale = true` skipped none. That asymmetry was in the gate, not the penalty.
+
+**Mechanism.** `get_decrease_condition` evaluates the sigmoid at both signs — `sigmoid(-scaled_V) * in_RoA_penalty` and `sigmoid(scaled_V) * out_of_RoA_penalty` — so with `scaled_V = V - ρ` the in-RoA term's gate is `σ(ρ - V)`. For `σ(z) = 1/(1+exp(-kz))` with `k = 20`, `exp(-kz)` overflows to `Inf` once `z < -35.49`, i.e. once **`V > ρ + 709.78/k ≈ 36.5`**. The value still rounds to 0, but the derivative composes as `-0.0 * Inf` and comes back `NaN`. The inverse-V penalties are exactly the ones that drive `V` that large. With `log_scale = true` the same gate sees `-log(V/ρ)`, which needs `V/ρ > exp(709.78/k) ≈ 2.6e15` to overflow — so `log(V/ρ)` was never fixing the gate, only keeping it out of its unsafe input range.
+
+**Fix** ([`src/penalties.jl`](src/penalties.jl)): `σ(z) = (1 + tanh(kz/2))/2`. Algebraically the same logistic function, but `tanh` saturates to ±1 instead of overflowing, so value *and* derivative stay finite for every real `z`, and it traces symbolically through NeuralPDE exactly like `exp`. Over `V ∈ [0, 100]` the two forms differ by at most `1.1e-16` where the old one is finite. `julia --project=. scripts/sigmoid_overflow_check.jl` prints the value/derivative table and the overflow thresholds above.
+
+Protocol otherwise unchanged (same NeuralLyapunov 0.4.9 `roa-log-transtion` build, seed 2026, 36 runs). Full tables: [`results/sigmoid_fix_comparison.md`](results/sigmoid_fix_comparison.md); previous grid preserved as [`results/summary_nl_v0.4.9_naive_sigmoid.csv`](results/summary_nl_v0.4.9_naive_sigmoid.csv).
+
+**Results**
+
+- **NaN gradients are gone: 1730 skipped Adam updates across the grid → 0.** Every one of the 36 runs now applies all 600 updates. The three previously-starved runs skipped 569/591/570; they now skip none.
+- **30 of 36 RoA areas are unchanged.** All six that moved are inverse-V × logistic — the only runs whose gate argument ever reached the unsafe range or whose training is sensitive to it.
+
+  | run (logistic) | area old → new | max dV/dt inside old → new | accuracy old → new | NaN skips old → new |
+  |---|---:|---:|---:|---:|
+  | `inv_V_small`, `log_scale=false` | 0.5108 → 1.1596 | 4.9124 → 3.1487 | 0.245 → 0.289 | 569 → 0 |
+  | `inv_V_rho`, `log_scale=false` | 0.5924 → 0.0080 | 0.3914 → 0.3761 | 0.249 → 0.217 | 591 → 0 |
+  | `inv_V_clipped`, `log_scale=false` | 0.5884 → 0.6644 | 2.5643 → 6.9007 | 0.252 → 0.252 | 570 → 0 |
+  | `inv_V_small`, `log_scale=true` | 0.7396 → 0.8088 | 1.4942 → 2.4856 | 0.256 → 0.267 | 0 → 0 |
+  | `inv_V_rho`, `log_scale=true` | 0.0092 → 0.0112 | 0.0186 → 0.4764 | 0.216 → 0.217 | 0 → 0 |
+  | `inv_V_clipped`, `log_scale=true` | 1.0716 → 0.7860 | 2.1403 → 2.2878 | 0.278 → 0.267 | 0 → 0 |
+
+- **`log_scale` no longer shows a consistent advantage.** With the hard-step sigmoid the effect is exactly 0 in all nine penalties, as before. With the logistic sigmoid, Δ area (`log(V/ρ)` − `V − ρ`) before → after the fix: `inv_V_clipped` +0.48 → +0.12, `inv_V_small` +0.23 → **−0.35 (sign flip)**, `inv_V_rho` −0.58 → +0.003, `control_zero` −0.13 → −0.13 (unchanged; that run never overflowed), and all distance / constant / quadratic penalties exactly 0. Once both scalings train on finite gradients, what is left for the inverse-V penalties is small, inconsistent in sign, and the same size as the numerical sensitivity below — i.e. the earlier `log_scale` "advantage" for these penalties was mostly the NaN-gradient asymmetry.
+- **These inverse-V runs are numerically chaotic, so single-seed deltas should not be over-read.** The three `log_scale = true` rows above skipped 0 updates both before and after, yet their areas still moved by up to 0.29 — the only input that changed was a ≤`1.1e-16` difference in the gate. Resolving a real `log_scale` effect for the inverse-V penalties therefore needs averaging over seeds, not one run per cell.
+- **The larger areas are not valid certificates.** `inv_V_small`/`log_scale=false` grows to 1.1596 and `inv_V_clipped`/`log_scale=false` to 0.6644, but their max dV/dt inside `{V ≤ ρ}` is 3.15 and 6.90 — the decrease condition is violated inside the claimed set. `inv_V_rho` goes the other way: once it actually trains it collapses from 0.5924 to 0.0080. Training stability alone does not produce a usable RoA for these penalties.
+- **Classifier and timing are unaffected.** Still 0 false positives in all 36 runs, still at most 187 of the 785 in-RoA samples captured. Mean `benchmark` training time 10.83 s (was 10.91 s); `log_scale=false` 10.97 s vs `log_scale=true` 10.69 s — no meaningful timing difference between the scalings, consistent with the previous rerun.
+
+Reproduce:
+
+```bash
+julia --project=. scripts/sigmoid_overflow_check.jl
+julia --project=. run_roa_penalty_experiments.jl
+julia --project=. scripts/compare_reruns.jl results/summary_nl_v0.4.9_naive_sigmoid.csv results/summary.csv results/sigmoid_fix_comparison.md
+```
+
 ## Pre-Experiment Hypotheses
 
-Each penalty function `p(V, dV/dt, x, x₀, ρ)` is gated by `σ(V − ρ)` and applied **outside** the learned RoA level set `{x : V(x) ≤ ρ}`. Two sigmoids are tested: the default hard step `x ≥ 0` (non-differentiable boolean gate, zero gradient almost everywhere) and a logistic approximation `1/(1+exp(−20z))` (smooth, provides gradient signal near the boundary).
+Each penalty function `p(V, dV/dt, x, x₀, ρ)` is gated by `σ(V − ρ)` and applied **outside** the learned RoA level set `{x : V(x) ≤ ρ}`. Two sigmoids are tested: the default hard step `x ≥ 0` (non-differentiable boolean gate, zero gradient almost everywhere) and a logistic approximation `1/(1+exp(−20z))` (smooth, provides gradient signal near the boundary). The logistic gate is evaluated as the algebraically identical `(1+tanh(10z))/2` so it cannot overflow; see [Overflow-safe sigmoid rerun](#overflow-safe-sigmoid-rerun-oct-2026).
 
 | Penalty | Expected RoA Behavior | Reasoning |
 |---|---|---|
