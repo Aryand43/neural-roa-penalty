@@ -88,6 +88,7 @@ function run_one_experiment(setup, penalty_name, penalty_fn, sigmoid_name, sigmo
         xs = grid.xs,
         ys = grid.ys,
         Vvals = grid.Vvals,
+        dVvals = grid.dVvals,
         roa_mask = grid.roa_mask,
         error_message = ""
     )
@@ -123,6 +124,7 @@ function failed_result(penalty_name, sigmoid_name, err; log_scale::Bool = false,
         xs = Float64[],
         ys = Float64[],
         Vvals = Float64[],
+        dVvals = Float64[],
         roa_mask = Bool[],
         error_message = msg
     )

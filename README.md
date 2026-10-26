@@ -86,6 +86,28 @@ julia --project=. run_roa_penalty_experiments.jl
 julia --project=. scripts/compare_reruns.jl results/summary_nl_v0.4.9_naive_sigmoid.csv results/summary.csv results/sigmoid_fix_comparison.md
 ```
 
+## Multi-seed comparison of the two best settings (Oct 2026)
+
+Focused follow-up on the two configurations that tied for the largest RoA area on the grid — `inv_dist_sq` and `constant_one`, both with the logistic sigmoid and `log_scale = false`. Two questions: do they consistently get similar areas, and is one consistently slower?
+
+**Protocol** ([`scripts/seed_study.jl`](scripts/seed_study.jl)): 20 seeds (2026-2045) x 2 configurations = 40 runs, **paired on seed**. Everything else matches the grid. A seed fixes the network initialization, the `QuasiRandomTraining` samples and `benchmark`'s evaluation samples, so the within-seed difference is attributable to the penalty alone. Within each seed the two configurations run in alternating order (by seed parity) so machine drift cannot load systematically onto one of them. Significance is exact Wilcoxon signed-rank and sign tests plus a 20k bootstrap CI, all computed in Base so the pinned Manifest is untouched. Set `ROA_SEED_STUDY_ITERS` to shrink both Adam stages for a fast end-to-end smoke test. Full tables: [`results/seed_study.md`](results/seed_study.md), [`results/seed_study.csv`](results/seed_study.csv).
+
+**Results**
+
+- **Same area, essentially always.** 19 of 20 seeds give exactly the same area for both penalties, 3.13. The one exception is seed 2036, where `constant_one` is 6 grid cells smaller (3.1276 vs 3.13, −0.08%). Mean paired Δ −0.0001, bootstrap 95% CI [−0.0004, 0.0].
+- **They learn the same set, not just the same area.** `benchmark`'s 1000-sample confusion matrix is identical between the two penalties in **all 20 seeds** (tp ranges 180-205 across seeds; fp = 0 in all 40 runs) — including seed 2036, where the grid areas differ. The penalty choice moves the loss offset (mean loss over the last 100 iterations: 0.148 for `inv_dist_sq` vs 0.794 for `constant_one`) but not the learned level set.
+- **No consistent timing difference; the earlier gap was measurement noise.** Mean paired Δ −0.10 s (`constant_one` marginally *faster*), bootstrap 95% CI [−0.53, +0.27] s; `constant_one` slower in 10 of 20 seeds (sign test p = 1.0), Wilcoxon signed-rank p = 0.93. The grid's apparent 1.7 s penalty for `constant_one` does not reproduce: on seed 2026 with identical code the grid measured `constant_one` 12.68 s / `inv_dist_sq` 10.95 s, while this study measured `inv_dist_sq` 12.05 s / `constant_one` 11.76 s — the sign of the gap flipped between two runs of the same configuration.
+- **Wall-clock timing drifts by enough to manufacture a gap that size.** Mean training time was 11.96 s over the first half of the runs against 10.70 s over the second half (the last five seeds all land near 9 s) — drift of the same magnitude as the effect being tested. Order alternation kept it off the comparison: ran-first 11.23 s vs ran-second 11.43 s. Per-seed sd is 1.6 s (`inv_dist_sq`) and 1.3 s (`constant_one`), so single-run training times in this setup are not resolvable below about 1 s.
+- **Neither configuration is a valid certificate, and that is not an origin artifact.** All 40 runs have at least one grid point inside `{V ≤ ρ}` with `V̇ > 0`. `V̇` vanishes at the origin, which is itself a grid point, so `max_dVdt_inside` can never be negative — but the argmax never lands in the ball `‖x‖ < 0.05`. It sits at `‖x‖` between 0.16 and 0.98 (mean 0.52 for `inv_dist_sq`, 0.38 for `constant_one`), so these are genuine interior violations rather than the fixed-point neighbourhood. Magnitudes are small and comparable between the two: max `V̇` inside averages 0.0066 (`inv_dist_sq`) and 0.0065 (`constant_one`); 6 of 20 `inv_dist_sq` runs and 4 of 20 `constant_one` runs exceed 0.01, worst cases 0.0197 and 0.0298. The quietest run is `constant_one` on seed 2028 at 8.3e-7 — numerically zero, but still not negative.
+
+**Recommendation.** On both metrics the two are interchangeable for this problem: they recover the same RoA estimate and cost the same to train. `constant_one` is the simpler of the two and has no singularity to reason about, so it is the better default, and the "puzzlingly slower" observation does not survive repetition. The open issue is that neither setting produces a certificate at 600 Adam iterations — that, rather than the penalty choice, is what is worth attacking next.
+
+Reproduce:
+
+```bash
+julia --project=. scripts/seed_study.jl 20 2026
+```
+
 ## Pre-Experiment Hypotheses
 
 Each penalty function `p(V, dV/dt, x, x₀, ρ)` is gated by `σ(V − ρ)` and applied **outside** the learned RoA level set `{x : V(x) ≤ ρ}`. Two sigmoids are tested: the default hard step `x ≥ 0` (non-differentiable boolean gate, zero gradient almost everywhere) and a logistic approximation `1/(1+exp(−20z))` (smooth, provides gradient signal near the boundary). The logistic gate is evaluated as the algebraically identical `(1+tanh(10z))/2` so it cannot overflow; see [Overflow-safe sigmoid rerun](#overflow-safe-sigmoid-rerun-oct-2026).
